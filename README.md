@@ -9,7 +9,7 @@
 ![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose-4285F4?logo=jetpackcompose&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
-[📥 Download APK](https://github.com/meaayu/DroidCanvas/releases/latest)
+[📥 Download APK](https://github.com/Anonimz7/DroidCanvas/releases/latest)
 
 </div>
 
@@ -24,10 +24,10 @@ DroidCanvas brings a professional reference board experience directly to your An
 ## ✨ Features
 
 - 🌌 **Infinite Workspace** — Pan and zoom freely without limits
-- 👌 **Precise Manipulation** — Drag, pinch, rotate with pixel-perfect control
+- 👌 **Precise Manipulation** — Drag, pinch-zoom, and rotate (slider) with pixel-perfect control
 - 💾 **Auto-Save** — All changes saved locally via Room database
 - 📱 **Modern UI** — Built with Jetpack Compose & Material 3
-- 🎭 **Creative Tools** — Grayscale, flip, GIF support, batch import
+- 🎭 **Creative Tools** — Flip, GIF support, crop, batch import
 
 ---
 
@@ -50,12 +50,12 @@ DroidCanvas brings a professional reference board experience directly to your An
 ## 🚀 Quick Start
 
 **Option 1: Download APK**
-- Visit [GitHub Releases](https://github.com/meaayu/DroidCanvas/releases/latest)
+- Visit [GitHub Releases](https://github.com/Anonimz7/DroidCanvas/releases/latest)
 - Download and install (requires Android 8.0+)
 
 **Option 2: Build from Source**
 ```bash
-git clone https://github.com/meaayu/DroidCanvas.git
+git clone https://github.com/Anonimz7/DroidCanvas.git
 cd DroidCanvas
 ./gradlew assembleDebug
 ```
@@ -65,20 +65,20 @@ cd DroidCanvas
 ## 🛣️ Roadmap
 
 **Completed:**
-- [x] Grayscale toggle
 - [x] Flip transformations
 - [x] Animated GIF support
 - [x] Auto-arrange
 - [x] Multi-image import
 - [x] Undo/Redo
+- [x] Crop tool
 
 **Ongoing:**
 - [ ] Tablet optimization
-- [ ] Crop tool
 - [ ] Export/Import project file
 
 **Incompleted:**
 - [ ] Undo/redo Gesture
+- [ ] Grayscale toggle
 
 ---
 
