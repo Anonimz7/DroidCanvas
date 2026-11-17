@@ -78,6 +78,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Flip
 import androidx.compose.material.icons.filled.FlipToFront
+import androidx.compose.material.icons.filled.FilterBAndW
 import androidx.compose.ui.draw.rotate
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Info
@@ -549,6 +550,13 @@ fun DroidCanvasScreen(
                         velocityTracker.addPosition(down.uptimeMillis, down.position)
                         
                         var isTapCandidate = !down.isConsumed
+
+                        // Three-finger horizontal swipe = undo (left) / redo (right).
+                        // Two fingers already belong to pan/zoom, so only three fingers are free.
+                        var threeFingerPan = Offset.Zero
+                        var threeFingerZoom = 1f
+                        var threeFingerSwipeFired = false
+                        var prevPressedCount = 0
                         
                         do {
                             val event = awaitPointerEvent()
@@ -559,6 +567,38 @@ fun DroidCanvasScreen(
                                 
                                 zoom *= zoomChange
                                 pan += panChange
+
+                                // Three-finger swipe detection (undo/redo). Accumulates only
+                                // while exactly three pointers are down; resets otherwise.
+                                val pressedCount = event.changes.count { it.pressed }
+                                // Skip the event where the 3rd finger lands: the centroid
+                                // jumps toward it and would look like a swipe by itself.
+                                if (pressedCount == 3 && prevPressedCount == 3 && !threeFingerSwipeFired) {
+                                    threeFingerPan += panChange
+                                    threeFingerZoom *= zoomChange
+                                    val swipeZoomMotion = abs(1 - threeFingerZoom) * event.calculateCentroidSize(useCurrent = false)
+                                    if (abs(threeFingerPan.x) > touchSlop * 2 &&
+                                        abs(threeFingerPan.y) < touchSlop &&
+                                        swipeZoomMotion < touchSlop
+                                    ) {
+                                        threeFingerSwipeFired = true
+                                        if (threeFingerPan.x < 0) {
+                                            if (viewModel.canUndo.value) {
+                                                viewModel.undo()
+                                                Toast.makeText(context, "Undo", Toast.LENGTH_SHORT).show()
+                                            }
+                                        } else {
+                                            if (viewModel.canRedo.value) {
+                                                viewModel.redo()
+                                                Toast.makeText(context, "Redo", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                    }
+                                } else if (pressedCount != 3) {
+                                    threeFingerPan = Offset.Zero
+                                    threeFingerZoom = 1f
+                                }
+                                prevPressedCount = pressedCount
                                 
                                 val centroidSize = event.calculateCentroidSize(useCurrent = false)
                                 val zoomMotion = abs(1 - zoom) * centroidSize
@@ -585,7 +625,7 @@ fun DroidCanvasScreen(
                                     
                                     val effectiveZoom = zoomChange
                                     val centroid = event.calculateCentroid(useCurrent = true)
-                                    if (effectiveZoom != 1f || panChange != Offset.Zero) {
+                                    if (pressedCount != 3 && (effectiveZoom != 1f || panChange != Offset.Zero)) {
                                         val centroidCoord = if (centroid != Offset.Unspecified) centroid else down.position
                                         val zoomRes = CanvasZoomHelper.computeZoom(
                                             viewModel.canvasScale,
@@ -621,7 +661,7 @@ fun DroidCanvasScreen(
                             if (System.currentTimeMillis() - viewModel.lastItemTapTime > 150) {
                                 viewModel.selectItem(null)
                             }
-                        } else {
+                        } else if (!threeFingerSwipeFired) {
                             val velocity = velocityTracker.calculateVelocity()
                             // Trigger dynamic physical deceleration on release
                             if (abs(velocity.x) > 150f || abs(velocity.y) > 150f) {
@@ -3234,7 +3274,7 @@ fun CanvasItemView(
                         error = thumbnailPainter,
                         contentDescription = "Reference reference photo",
                         contentScale = ContentScale.Fit,
-                        colorFilter = null,
+                        colorFilter = if (latestItem.isGrayscale) ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) }) else null,
                         modifier = Modifier
                             .fillMaxSize()
                             .clip(RoundedCornerShape(10.dp))
@@ -4932,6 +4972,7 @@ fun SidebarContent(
                                                                     .build(),
                                                                 contentDescription = "Image Preview",
                                                                 contentScale = ContentScale.Crop,
+                                                                colorFilter = if (item.isGrayscale) ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) }) else null,
                                                                 modifier = Modifier.fillMaxSize()
                                                             )
                                                         }
@@ -5331,6 +5372,33 @@ fun SidebarContent(
                                                                                 )
                                                                                 Spacer(modifier = Modifier.width(6.dp))
                                                                                 Text("Flip Vert", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                                            }
+                                                                        }
+
+                                                                        Row(
+                                                                            modifier = Modifier.fillMaxWidth(),
+                                                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                                        ) {
+                                                                            // Grayscale
+                                                                            val isGrayscale = item.isGrayscale
+                                                                            Button(
+                                                                                onClick = { viewModel.toggleGrayscale(item) },
+                                                                                colors = ButtonDefaults.buttonColors(
+                                                                                    containerColor = if (isGrayscale) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+                                                                                    contentColor = if (isGrayscale) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface
+                                                                                ),
+                                                                                shape = RoundedCornerShape(8.dp),
+                                                                                modifier = Modifier.weight(1f).height(36.dp),
+                                                                                contentPadding = PaddingValues(0.dp)
+                                                                            ) {
+                                                                                Icon(
+                                                                                    Icons.Default.FilterBAndW,
+                                                                                    contentDescription = null,
+                                                                                    modifier = Modifier.size(14.dp),
+                                                                                    tint = if (isGrayscale) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant
+                                                                                )
+                                                                                Spacer(modifier = Modifier.width(6.dp))
+                                                                                Text("Grayscale", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                                                             }
                                                                         }
 

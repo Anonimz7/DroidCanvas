@@ -1204,6 +1204,15 @@ class DroidCanvasViewModel(
         }
     }
 
+    fun toggleGrayscale(item: CanvasItem) {
+        if (item.isPinned) return
+        saveCurrentStateToUndo()
+        viewModelScope.launch(Dispatchers.IO) {
+            val updated = item.copy(isGrayscale = !item.isGrayscale)
+            repository.updateCanvasItem(updated)
+        }
+    }
+
     fun toggleValuesEnabled(item: CanvasItem) {
         saveCurrentStateToUndo()
         viewModelScope.launch(Dispatchers.IO) {

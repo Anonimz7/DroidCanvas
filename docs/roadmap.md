@@ -48,6 +48,8 @@ Setiap langkah merujuk ke dokumen yang relevan.
 
 ### 1. Export/import project file — fitur besar berikutnya
 
+Rancangan: [designs/export-import.md](designs/export-import.md)
+
 Desain dulu, baru kode (satu dokumen desain per fitur, pola photocraft):
 
 - **Format:** satu arsip (ZIP) berisi manifest JSON berversi + berkas gambar
@@ -65,6 +67,8 @@ Desain dulu, baru kode (satu dokumen desain per fitur, pola photocraft):
 
 ### 2. Undo/redo gesture — kecil-menengah
 
+Rancangan: [designs/undo-gesture.md](designs/undo-gesture.md)
+
 - Pilih satu gesture (misalnya swipe dua jari / tiga jari) dan tetapkan di
   `decisions.md` sebelum implementasi — gesture harus tidak bentrok dengan
   pan/zoom dua jari yang sudah ada.
@@ -75,6 +79,8 @@ Desain dulu, baru kode (satu dokumen desain per fitur, pola photocraft):
 
 ### 3. Tablet optimization — menengah
 
+Rancangan: [designs/tablet.md](designs/tablet.md)
+
 - Definisikan dulu apa artinya "optimal untuk tablet" untuk aplikasi ini:
   kandidatnya panel ganda (sidebar + inspector bersamaan), dukungan stylus
   (tekanan, palm rejection), layout landscape, multi-window.
@@ -82,6 +88,8 @@ Desain dulu, baru kode (satu dokumen desain per fitur, pola photocraft):
   cakupan, bukan dari kode.
 
 ### 4. Grayscale toggle — kecil (kalau jadi dikerjakan)
+
+Rancangan: [designs/grayscale.md](designs/grayscale.md)
 
 - Implementasi yang konsisten: tambah flag persisten per item (bukan kolom
   migrasi yang lalu dihapus), terapkan `ColorFilter.colorMatrix` saat render
