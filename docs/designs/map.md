@@ -98,6 +98,26 @@ dengan apa".
 > undo yang mengembalikan item yang sempat terhapus tidak mengembalikan
 > edge-nya (edge ikut terhapus saat item dihapus). Migrasi 9→10 tunggal:
 > 3 kolom baru + tabel `edges`.
+>
+> **Catatan implementasi fase 2 (2026-11-18):** T5 selesai — pengalih
+> Board/Map (baris kedua panel kontrol atas, state lokal `MapViewMode` di
+> `DroidCanvasScreen`, seperti `isSidebarExpanded`) + `MapView.kt` baru
+> (kartu node: thumbnail `thumbPath`, nama "Image #N" seperti daftar layer,
+> label IMAGE, port kiri/kanan di luar kartu supaya tidak terpotong clip;
+> thumbnail ikut grayscale bila `isGrayscale`, sama seperti kanvas/layer).
+> Yang TIDAK ikut fase 2 (sengaja): tombol `+` tidak dibuat — fungsinya
+> notes (T8/fase 4), tombol mati dilarang; **geser node tidak
+> diimplementasikan — tidak ada to-do yang mencantumkannya** (T10 hanya
+> mengujinya), perlu keputusan penempatan (diusulkan ikut fase 3 bersama
+> gesture edge, atau langkah kecil tersendiri). Penempatan awal node yang
+> belum diposisikan (`mapX`/`mapY` = 0): grid deterministik dari indeks
+> item (urutan `zIndex`); (0, 0) adalah sentinel "belum diposisikan" — node
+> yang digeser tepat ke (0, 0) kembali ke slot grid-nya. Area Map bisa
+> di-scroll vertikal supaya semua kartu terjangkau. Gesture pan/zoom kanvas
+> dimatikan saat mode Map (`pointerInput(viewMode)` + gate
+> `pastTouchSlop`), jadi menggeser area Map tidak menggerakkan Board yang
+> tersembunyi. Bottom bar dibiarkan apa adanya (aksi-aksinya milik Board;
+> di mode Map tetap berlaku untuk Board, tidak terlihat di Map).
 
 ## 6. Yang sengaja tidak dirancang di sini
 

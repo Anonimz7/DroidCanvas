@@ -313,6 +313,9 @@ fun DroidCanvasScreen(
 
     var isSidebarExpanded by remember { mutableStateOf(true) }
     var isFullscreenMode by remember { mutableStateOf(false) }
+    // Map view mode (fase 2): BOARD = the existing infinite canvas,
+    // MAP = node cards. Local UI state, like isSidebarExpanded above.
+    var viewMode by remember { mutableStateOf(MapViewMode.BOARD) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
     BoxWithConstraints(
@@ -533,7 +536,7 @@ fun DroidCanvasScreen(
 
                 }
                 // Background Canvas gestures: Tap to unselect, transform gestures to zoom and pan with inertial scrolling
-                .pointerInput(Unit) {
+                .pointerInput(viewMode) {
                     awaitEachGesture {
                         var zoom = 1f
                         var pan = Offset.Zero
@@ -573,7 +576,7 @@ fun DroidCanvasScreen(
                                     }
                                 }
                                 
-                                if (pastTouchSlop) {
+                                if (pastTouchSlop && viewMode == MapViewMode.BOARD) {
                                     // Add position of active pointer to velocity tracker for higher tracking accuracy
                                     val activeChange = event.changes.find { it.id == activePointerId }
                                     if (activeChange != null) {
@@ -657,77 +660,86 @@ fun DroidCanvasScreen(
                     }
                 }
         ) {
-            // 2. THE INFINITE BOARD IMAGE LAYER
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer {
-                        translationX = viewModel.canvasTranslateX
-                        translationY = viewModel.canvasTranslateY
-                        scaleX = viewModel.canvasScale
-                        scaleY = viewModel.canvasScale
-                        transformOrigin = TransformOrigin(0f, 0f)
-                        compositingStrategy = CompositingStrategy.Auto
-                    }
-            ) {
-                if (isLoaded) {
-                    // Render each image on the canvas
-                    canvasItems.forEach { item ->
-                        CanvasItemView(
-                            item = item,
-                            isSelected = if (isMultiSelectMode) selectedItemIds.contains(item.id) else selectedItemId == item.id,
-                            viewModel = viewModel,
-                            globalIsMultiTouch = globalIsMultiTouch,
-                            viewportWidth = viewportWidth,
-                            viewportHeight = viewportHeight
-                        )
-                    }
-
-                    // Render completed and active drawing strokes
-                    val drawingStrokes by viewModel.drawingStrokes.collectAsState()
-                    val activeStroke = viewModel.activeStroke
-                    
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        drawingStrokes.forEach { stroke ->
-                            val path = Path().apply {
-                                if (stroke.points.isNotEmpty()) {
-                                    moveTo(stroke.points.first().x, stroke.points.first().y)
-                                    for (i in 1 until stroke.points.size) {
-                                        lineTo(stroke.points[i].x, stroke.points[i].y)
-                                    }
-                                }
-                            }
-                            drawPath(
-                                path = path,
-                                color = Color(stroke.color),
-                                style = Stroke(
-                                    width = stroke.strokeWidth,
-                                    cap = StrokeCap.Round,
-                                    join = StrokeJoin.Round
-                                )
+            if (viewMode == MapViewMode.BOARD) {
+                // 2. THE INFINITE BOARD IMAGE LAYER
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            translationX = viewModel.canvasTranslateX
+                            translationY = viewModel.canvasTranslateY
+                            scaleX = viewModel.canvasScale
+                            scaleY = viewModel.canvasScale
+                            transformOrigin = TransformOrigin(0f, 0f)
+                            compositingStrategy = CompositingStrategy.Auto
+                        }
+                ) {
+                    if (isLoaded) {
+                        // Render each image on the canvas
+                        canvasItems.forEach { item ->
+                            CanvasItemView(
+                                item = item,
+                                isSelected = if (isMultiSelectMode) selectedItemIds.contains(item.id) else selectedItemId == item.id,
+                                viewModel = viewModel,
+                                globalIsMultiTouch = globalIsMultiTouch,
+                                viewportWidth = viewportWidth,
+                                viewportHeight = viewportHeight
                             )
                         }
-                        activeStroke?.let { stroke ->
-                            val path = Path().apply {
-                                if (stroke.points.isNotEmpty()) {
-                                    moveTo(stroke.points.first().x, stroke.points.first().y)
-                                    for (i in 1 until stroke.points.size) {
-                                        lineTo(stroke.points[i].x, stroke.points[i].y)
+
+                        // Render completed and active drawing strokes
+                        val drawingStrokes by viewModel.drawingStrokes.collectAsState()
+                        val activeStroke = viewModel.activeStroke
+                    
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            drawingStrokes.forEach { stroke ->
+                                val path = Path().apply {
+                                    if (stroke.points.isNotEmpty()) {
+                                        moveTo(stroke.points.first().x, stroke.points.first().y)
+                                        for (i in 1 until stroke.points.size) {
+                                            lineTo(stroke.points[i].x, stroke.points[i].y)
+                                        }
                                     }
                                 }
-                            }
-                            drawPath(
-                                path = path,
-                                color = Color(stroke.color),
-                                style = Stroke(
-                                    width = stroke.strokeWidth,
-                                    cap = StrokeCap.Round,
-                                    join = StrokeJoin.Round
+                                drawPath(
+                                    path = path,
+                                    color = Color(stroke.color),
+                                    style = Stroke(
+                                        width = stroke.strokeWidth,
+                                        cap = StrokeCap.Round,
+                                        join = StrokeJoin.Round
+                                    )
                                 )
-                            )
+                            }
+                            activeStroke?.let { stroke ->
+                                val path = Path().apply {
+                                    if (stroke.points.isNotEmpty()) {
+                                        moveTo(stroke.points.first().x, stroke.points.first().y)
+                                        for (i in 1 until stroke.points.size) {
+                                            lineTo(stroke.points[i].x, stroke.points[i].y)
+                                        }
+                                    }
+                                }
+                                drawPath(
+                                    path = path,
+                                    color = Color(stroke.color),
+                                    style = Stroke(
+                                        width = stroke.strokeWidth,
+                                        cap = StrokeCap.Round,
+                                        join = StrokeJoin.Round
+                                    )
+                                )
+                            }
                         }
                     }
                 }
+            } else {
+                // Map view (fase 2): node cards over the same Board data (K1).
+                // Edges are not drawn here yet (fase 3); notes UI is fase 4.
+                MapView(
+                    items = canvasItems,
+                    modifier = Modifier.fillMaxSize()
+                )
             }
 
             // 3. EMPTY STATE ILLUSTRATION
@@ -1766,6 +1778,74 @@ fun DroidCanvasScreen(
                                         color = if (isFullscreenMode) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
                                         style = MaterialTheme.typography.labelMedium,
                                         fontWeight = FontWeight.Bold,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Board/Map view switcher (Map view, fase 2 — K1: two
+                    // presentations over the same Board data). Board keeps the
+                    // existing infinite canvas; Map shows node cards.
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerLow,
+                            border = BorderStroke(
+                                1.dp,
+                                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                            ),
+                            modifier = Modifier.testTag("view_mode_switcher")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(
+                                            if (viewMode == MapViewMode.BOARD) MaterialTheme.colorScheme.primaryContainer
+                                            else Color.Transparent
+                                        )
+                                        .clickable { viewMode = MapViewMode.BOARD }
+                                        .padding(horizontal = 16.dp, vertical = 6.dp)
+                                        .testTag("view_mode_board"),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "Board",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (viewMode == MapViewMode.BOARD) MaterialTheme.colorScheme.onPrimaryContainer
+                                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(
+                                            if (viewMode == MapViewMode.MAP) MaterialTheme.colorScheme.primaryContainer
+                                            else Color.Transparent
+                                        )
+                                        .clickable { viewMode = MapViewMode.MAP }
+                                        .padding(horizontal = 16.dp, vertical = 6.dp)
+                                        .testTag("view_mode_map"),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "Map",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (viewMode == MapViewMode.MAP) MaterialTheme.colorScheme.onPrimaryContainer
+                                        else MaterialTheme.colorScheme.onSurfaceVariant,
                                         maxLines = 1
                                     )
                                 }
@@ -3865,6 +3945,13 @@ fun SidebarSectionHeader(
 
 enum class SidebarTab {
     BOARD, DRAW, LAYERS
+}
+
+// Map view: which presentation of the current board is shown (K1 — Board
+// and Map are two presentations over the same Board data). Fase 2: the
+// Board/Map switcher in the top control panel toggles this.
+enum class MapViewMode {
+    BOARD, MAP
 }
 
 @Composable
