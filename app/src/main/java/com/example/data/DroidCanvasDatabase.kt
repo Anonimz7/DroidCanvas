@@ -60,7 +60,49 @@ data class CanvasItem(
     val isValuesEnabled: Boolean = false,
     val simplicity: Int = 0,
     val stopsCount: Int = 3,
-    val stopsJson: String = ""
+    val stopsJson: String = "",
+    val mapX: Float = 0f,       // X coordinate of the node in Map view (own layout, K2)
+    val mapY: Float = 0f,       // Y coordinate of the node in Map view (own layout, K2)
+    val note: String = ""       // Per-item note shown in Map view (K6, O2)
+)
+
+// Map view: a typed connection between two items of the same board.
+// The edge stores only from/to/type (K5); the curve geometry is derived
+// from the node positions at render time, never stored.
+@Entity(
+    tableName = "edges",
+    foreignKeys = [
+        ForeignKey(
+            entity = Board::class,
+            parentColumns = ["id"],
+            childColumns = ["boardId"],
+            onDelete = ForeignKey.CASCADE
+        ),
+        ForeignKey(
+            entity = CanvasItem::class,
+            parentColumns = ["id"],
+            childColumns = ["fromItemId"],
+            onDelete = ForeignKey.CASCADE
+        ),
+        ForeignKey(
+            entity = CanvasItem::class,
+            parentColumns = ["id"],
+            childColumns = ["toItemId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [
+        Index(value = ["boardId"]),
+        Index(value = ["fromItemId"]),
+        Index(value = ["toItemId"])
+    ]
+)
+data class Edge(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val boardId: Int,
+    val fromItemId: Int,
+    val toItemId: Int,
+    val type: String // ConnectionType.name — see ConnectionType.kt
 )
 
 @Dao
@@ -96,9 +138,31 @@ interface DroidCanvasDao {
     suspend fun getMaxZIndex(boardId: Int): Int?
 }
 
-@Database(entities = [Board::class, CanvasItem::class], version = 9, exportSchema = false)
+@Dao
+interface EdgeDao {
+    @Query("SELECT * FROM edges WHERE boardId = :boardId")
+    fun getEdgesForBoard(boardId: Int): Flow<List<Edge>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertEdge(edge: Edge): Long
+
+    @Update
+    suspend fun updateEdge(edge: Edge)
+
+    @Delete
+    suspend fun deleteEdge(edge: Edge)
+
+    @Query("DELETE FROM edges WHERE fromItemId = :itemId OR toItemId = :itemId")
+    suspend fun deleteEdgesForItem(itemId: Int)
+
+    @Query("DELETE FROM edges WHERE boardId = :boardId")
+    suspend fun deleteEdgesForBoard(boardId: Int)
+}
+
+@Database(entities = [Board::class, CanvasItem::class, Edge::class], version = 10, exportSchema = false)
 abstract class DroidCanvasDatabase : RoomDatabase() {
     abstract fun droidCanvasDao(): DroidCanvasDao
+    abstract fun edgeDao(): EdgeDao
 
     companion object {
         @Volatile
@@ -199,6 +263,33 @@ abstract class DroidCanvasDatabase : RoomDatabase() {
             }
         }
 
+        // Map view (fase 1): one migration for all schema changes — 3 new
+        // CanvasItem columns (mapX/mapY/note) + the edges table. New rows get
+        // mapX/mapY = 0 and note = '' (same defaults as the entity), so
+        // pre-existing boards open unchanged and keep their data.
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE canvas_items ADD COLUMN mapX REAL NOT NULL DEFAULT 0.0")
+                db.execSQL("ALTER TABLE canvas_items ADD COLUMN mapY REAL NOT NULL DEFAULT 0.0")
+                db.execSQL("ALTER TABLE canvas_items ADD COLUMN note TEXT NOT NULL DEFAULT ''")
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `edges` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `boardId` INTEGER NOT NULL,
+                        `fromItemId` INTEGER NOT NULL,
+                        `toItemId` INTEGER NOT NULL,
+                        `type` TEXT NOT NULL,
+                        FOREIGN KEY(`boardId`) REFERENCES `boards`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(`fromItemId`) REFERENCES `canvas_items`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(`toItemId`) REFERENCES `canvas_items`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_edges_boardId` ON `edges` (`boardId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_edges_fromItemId` ON `edges` (`fromItemId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_edges_toItemId` ON `edges` (`toItemId`)")
+            }
+        }
+
         fun getDatabase(context: Context): DroidCanvasDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -206,7 +297,7 @@ abstract class DroidCanvasDatabase : RoomDatabase() {
                     DroidCanvasDatabase::class.java,
                     "droid_canvas_database"
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance
@@ -216,7 +307,10 @@ abstract class DroidCanvasDatabase : RoomDatabase() {
     }
 }
 
-class DroidCanvasRepository(private val dao: DroidCanvasDao) {
+class DroidCanvasRepository(
+    private val dao: DroidCanvasDao,
+    private val edgeDao: EdgeDao
+) {
     val allBoards: Flow<List<Board>> = dao.getAllBoards()
 
     suspend fun getBoardById(id: Int): Board? = dao.getBoardById(id)
@@ -236,4 +330,17 @@ class DroidCanvasRepository(private val dao: DroidCanvasDao) {
     suspend fun deleteCanvasItem(item: CanvasItem) = dao.deleteCanvasItem(item)
 
     suspend fun getMaxZIndex(boardId: Int): Int? = dao.getMaxZIndex(boardId)
+
+    // Map view edges (fase 1: data layer only, no business logic yet)
+    fun getEdgesForBoard(boardId: Int): Flow<List<Edge>> = edgeDao.getEdgesForBoard(boardId)
+
+    suspend fun insertEdge(edge: Edge): Long = edgeDao.insertEdge(edge)
+
+    suspend fun updateEdge(edge: Edge) = edgeDao.updateEdge(edge)
+
+    suspend fun deleteEdge(edge: Edge) = edgeDao.deleteEdge(edge)
+
+    suspend fun deleteEdgesForItem(itemId: Int) = edgeDao.deleteEdgesForItem(itemId)
+
+    suspend fun deleteEdgesForBoard(boardId: Int) = edgeDao.deleteEdgesForBoard(boardId)
 }

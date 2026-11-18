@@ -12,8 +12,10 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.data.Board
 import com.example.data.CanvasItem
-import com.example.data.ImageStorageHelper
+import com.example.data.ConnectionType
 import com.example.data.DroidCanvasRepository
+import com.example.data.Edge
+import com.example.data.ImageStorageHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.onEach
@@ -114,6 +116,22 @@ class DroidCanvasViewModel(
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = emptyList()
     )
+
+    // Map view edges for the current board (fase 1: data layer only — no
+    // edge business logic yet, that is fase 3)
+    val edges: StateFlow<List<Edge>> = _currentBoardId
+        .flatMapLatest { boardId ->
+            if (boardId != null) {
+                repository.getEdgesForBoard(boardId)
+            } else {
+                flowOf(emptyList())
+            }
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
 
     private val _valuesResults = MutableStateFlow<Map<Int, ValuesResult>>(emptyMap())
     val valuesResults: StateFlow<Map<Int, ValuesResult>> = _valuesResults.asStateFlow()
@@ -1218,6 +1236,36 @@ class DroidCanvasViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             val updated = item.copy(isValuesEnabled = !item.isValuesEnabled)
             repository.updateCanvasItem(updated)
+        }
+    }
+
+    // Map view edge CRUD (fase 1: thin pass-throughs; edge creation rules
+    // and gestures are fase 3). No undo snapshot here — edges are not part
+    // of the item snapshot stacks yet.
+    fun insertEdge(fromItemId: Int, toItemId: Int, type: ConnectionType) {
+        val boardId = _currentBoardId.value ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertEdge(
+                Edge(boardId = boardId, fromItemId = fromItemId, toItemId = toItemId, type = type.name)
+            )
+        }
+    }
+
+    fun deleteEdge(edge: Edge) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.deleteEdge(edge)
+        }
+    }
+
+    fun updateEdge(edge: Edge) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.updateEdge(edge)
+        }
+    }
+
+    fun deleteEdgesForItem(itemId: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.deleteEdgesForItem(itemId)
         }
     }
 

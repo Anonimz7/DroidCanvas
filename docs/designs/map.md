@@ -90,6 +90,15 @@ dengan apa".
 | T9 | Hapus gambar → edge + note + posisi Map ikut hapus (O3); export/import: edge, notes, dan posisi Map ikut format proyek — lihat `designs/export-import.md` (format harus mencakup kolom baru ini) |
 | T10 | Uji manual di perangkat (tidak ada tes UI otomatis hari ini): buat edge 8 jenis, geser node (garis ikut), tambah note, hapus gambar (edge ikut hilang) |
 
+> **Catatan implementasi fase 1 (2026-11-18):** O3 diwujudkan dengan FK
+> `CASCADE` (`Edge` → `Board`, `Edge` → `CanvasItem` dua arah) — codebase
+> sudah memakai `ForeignKey` dengan CASCADE (`CanvasItem` → `Board`), jadi
+> tidak ada penghapusan eksplisit di jalur hapus item (`restoreSnapshot`,
+> `clearCurrentBoard`, `deleteSelectedItems` tidak berubah). Konsekuensi:
+> undo yang mengembalikan item yang sempat terhapus tidak mengembalikan
+> edge-nya (edge ikut terhapus saat item dihapus). Migrasi 9→10 tunggal:
+> 3 kolom baru + tabel `edges`.
+
 ## 6. Yang sengaja tidak dirancang di sini
 
 - Tab **Scratch** (Kanvaz) — mekanismenya belum dieksplorasi user.

@@ -49,7 +49,7 @@ class MainActivity : ComponentActivity() {
 
         // 1. Initialize local Room database & Repository
         val database = DroidCanvasDatabase.getDatabase(applicationContext)
-        val repository = DroidCanvasRepository(database.droidCanvasDao())
+        val repository = DroidCanvasRepository(database.droidCanvasDao(), database.edgeDao())
 
         // 2. Instantiate DroidCanvas ViewModel
         viewModel = ViewModelProvider(
