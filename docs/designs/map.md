@@ -179,6 +179,8 @@ dengan apa".
 > di bawahnya ke bawah; menghapus note mengembalikannya. Hanya node yang
 > belum diposisikan yang memakai grid — tinggi baris hanya dihitung dari
 > node-node itu (node yang sudah digeser tidak ikut mendorong baris).
+> Jeda 16dp antar baris ditambahkan 2026-11-18 (pitch = tinggi node +
+> `cellGap`) — baris tidak lagi bersentuhan persis.
 
 ## 6. Yang sengaja tidak dirancang di sini
 

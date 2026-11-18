@@ -134,6 +134,7 @@ fun MapView(
     val cardWidthPx = with(density) { cardWidth.toPx() }
     val cardHeightPx = with(density) { cardHeight.toPx() }
     val cellWidthPx = with(density) { (cardWidth + cellGap).toPx() }
+    val cellGapPx = with(density) { cellGap.toPx() }
     val startXPx = with(density) { startPadding.toPx() }
     val startYPx = with(density) { startPadding.toPx() }
     val portYOffsetPx = with(density) { portCenterYOffset.toPx() }
@@ -187,7 +188,7 @@ fun MapView(
         // or a deterministic grid slot when never positioned). Row tops
         // come from gridRowTopYPx, so rows grow with their tallest node.
         val rowTopYPx = gridRowTopYPx(
-            items, columns, cardHeightPx, noteGapPx, noteBubbleHeightPx, noteButtonSizePx, startYPx
+            items, columns, cardHeightPx, noteGapPx, noteBubbleHeightPx, noteButtonSizePx, cellGapPx, startYPx
         )
         val positions = items.mapIndexed { index, item ->
             item.id to effectiveMapPosition(
@@ -217,7 +218,7 @@ fun MapView(
                         fun positionsOf(list: List<CanvasItem>): Map<Int, Offset> {
                             val tops = gridRowTopYPx(
                                 list, currentColumns, cardHeightPx, noteGapPx,
-                                noteBubbleHeightPx, noteButtonSizePx, startYPx
+                                noteBubbleHeightPx, noteButtonSizePx, cellGapPx, startYPx
                             )
                             return list.mapIndexed { index, item ->
                                 item.id to effectiveMapPosition(
@@ -699,12 +700,13 @@ private fun nodeHeightPx(
         noteButtonSizePx
 
 // Top y offset of each grid row in Map content px. A row is as tall as
-// its tallest node, so a noted node never overlaps the row below; adding
-// a note to a row-0 node pushes every row below it down, removing it
-// pulls them back up. Only nodes that were never positioned (the ones
-// actually placed on the grid) count toward a row's height — a dragged
-// node's visual lives at its stored position, so it must not push grid
-// rows down. A row with no grid-placed nodes is 0 tall.
+// its tallest node plus a 16dp gap (cellGap), so a noted node never
+// overlaps the row below and rows never touch exactly; adding a note to a
+// row-0 node pushes every row below it down, removing it pulls them back
+// up. Only nodes that were never positioned (the ones actually placed on
+// the grid) count toward a row's height — a dragged node's visual lives at
+// its stored position, so it must not push grid rows down. A row with no
+// grid-placed nodes is 0 tall (no gap either).
 private fun gridRowTopYPx(
     items: List<CanvasItem>,
     columns: Int,
@@ -712,6 +714,7 @@ private fun gridRowTopYPx(
     noteGapPx: Float,
     noteBubbleHeightPx: Float,
     noteButtonSizePx: Float,
+    cellGapPx: Float,
     startYPx: Float
 ): List<Float> {
     val rows = (items.size + columns - 1) / columns
@@ -732,6 +735,7 @@ private fun gridRowTopYPx(
             }
         }
         y += tallest
+        if (tallest > 0f) y += cellGapPx
     }
     return tops
 }
