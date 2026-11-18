@@ -1,6 +1,6 @@
 # Roadmap
 
-> **Terakhir ditinjau:** 2026-11-18 · **HEAD:** `0386188`
+> **Terakhir ditinjau:** 2026-11-18 · **HEAD:** `c3a14d8`
 > Dokumen ini mengaudit roadmap di `README.md` terhadap kode. Bagian "Keadaan
 > sebenarnya" menang atas README bila bertentangan.
 
@@ -29,7 +29,13 @@
 
 Bagian ini kosong sejak 2026-11-18: Grayscale pindah ke selesai, dan
 Undo/redo Gesture dibatalkan setelah sempat diimplementasikan lalu dihapus
-(lihat langkah 2).
+(lihat langkah 2). README kini punya bagian Planned — lihat di bawah.
+
+### Planned (menurut README)
+
+| Item README | Keadaan sebenarnya |
+|---|---|
+| Map view | ❌ **Belum ada** — tidak ada tampilan kedua, tidak ada model edge/notes. Rancangan di langkah 5. |
 
 ## Urutan kerja yang diusulkan
 
@@ -109,6 +115,21 @@ Rancangan: [designs/grayscale.md](designs/grayscale.md)
   di `CanvasItemView`, dan pastikan flag itu ikut dalam export/import (langkah 1).
 - Alternatif yang sah: nyatakan values study sebagai pengganti grayscale dan
   hapus item ini dari roadmap. Yang tidak boleh: klaim selesai tanpa kode.
+
+### 5. Map view — node graph (dipahami, diparkir)
+
+Rancangan: [designs/map.md](designs/map.md)
+
+> **Dipahami 2026-11-18, diparkir atas perintah user:** tampilan kedua di atas
+> data Board yang sama; node + edge bertipe 8 jenis + notes per node; layout
+> node sendiri (bukan posisi kanvas); garis polos tanpa panah; garis fleksibel
+> (geometri turunan).
+
+- Rancangan sudah lengkap di `designs/map.md` (keputusan K1–K7, terbuka O1–O5,
+  to-do T1–T10). Bangun hanya bila user membuka kembali.
+- Dependensi: migrasi berikutnya (9→10) bila dikerjakan sebelum pembersihan
+  kolom mati — lihat langkah 0; format export/import harus mencakup edge,
+  notes, dan posisi Map (lihat langkah 1).
 
 ### Pekerjaan fondasi (jalan bersamaan, sebelum rilis publik)
 

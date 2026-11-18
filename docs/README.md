@@ -1,6 +1,6 @@
 # Dokumentasi DroidCanvas
 
-> **Terakhir ditinjau:** 2026-11-13 · **HEAD:** `4a4439b` ("Improve ui/ux") · **Repo:** `Anonimz7/DroidCanvas` (fork dari `meaayu/DroidCanvas`, sumber asli sudah diarsipkan)
+> **Terakhir ditinjau:** 2026-11-18 · **HEAD:** `c3a14d8` · **Repo:** `Anonimz7/DroidCanvas` (fork dari `meaayu/DroidCanvas`, sumber asli sudah diarsipkan)
 
 Dokumentasi ini adalah peta keadaan proyek **sekarang**, ditulis dari pembacaan langsung
 seluruh kode sumber — bukan dari ingatan atau dari klaim README. Tujuannya: siapa pun
@@ -29,6 +29,7 @@ Aturan pemeliharaan:
 | [designs/undo-gesture.md](designs/undo-gesture.md) | Rancangan undo/redo gesture (langkah 2) |
 | [designs/tablet.md](designs/tablet.md) | Rancangan tablet optimization (langkah 3) |
 | [designs/grayscale.md](designs/grayscale.md) | Rancangan grayscale toggle (langkah 4) |
+| [designs/map.md](designs/map.md) | Rancangan Map view — node graph di atas Board (langkah 5) |
 
 ## Proyek dalam satu paragraf
 

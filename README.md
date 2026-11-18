@@ -77,6 +77,9 @@ cd DroidCanvas
 - [ ] Tablet optimization
 - [ ] Export/Import project file
 
+**Planned:**
+- [ ] Map view — node graph over the Board (typed connections + notes)
+
 ---
 
 ## 🙏 Acknowledgments
