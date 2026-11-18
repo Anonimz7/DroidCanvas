@@ -1,8 +1,10 @@
 # Rancangan: Map view — node graph di atas Board
 
 > **Status:** Rancangan lengkap — keputusan O1–O5 + K8 disetujui user 2026-11-18;
-> fase 1–5 selesai (di-push, remote `0dceada`), fase 6 berjalan,
-> fase 7 menunggu uji perangkat · **Terakhir ditinjau:** 2026-11-18 · **HEAD:** `0dceada` ·
+> fase 1–6 selesai (di-push, remote `0bac376`), **fase 7 SELESAI 2026-11-18
+> (uji perangkat user: Map bekerja dengan benar)**; perbaikan pasca-fase-7
+> (grid latar Map + switcher mengambang) dibuat, menunggu push/build ·
+> **Terakhir ditinjau:** 2026-11-18 · **HEAD:** `0bac376` ·
 > **Merujuk:** [roadmap.md](../roadmap.md) langkah 5 · [data-model.md](../data-model.md) · [ui.md](../ui.md)
 >
 > **Asal:** dieksplorasi user 2026-11-18 dari screenshot software Kanvaz
@@ -103,8 +105,10 @@ dengan apa".
 > 3 kolom baru + tabel `edges`.
 >
 > **Catatan implementasi fase 2 (2026-11-18):** T5 selesai — pengalih
-> Board/Map (baris kedua panel kontrol atas, state lokal `MapViewMode` di
-> `DroidCanvasScreen`, seperti `isSidebarExpanded`) + `MapView.kt` baru
+> Board/Map (semula baris kedua panel kontrol atas, state lokal `MapViewMode` di
+> `DroidCanvasScreen`, seperti `isSidebarExpanded`; **2026-11-18 dipindah jadi
+> pill mengambang di bawah panel** — posisi sama, terpisah dari menu, panel
+> jadi satu baris; posisi dari tinggi panel yang diukur `onSizeChanged`) + `MapView.kt` baru
 > (kartu node: thumbnail `thumbPath`, nama "Image #N" seperti daftar layer,
 > label IMAGE, port kiri/kanan di luar kartu supaya tidak terpotong clip;
 > thumbnail ikut grayscale bila `isGrayscale`, sama seperti kanvas/layer).
@@ -239,6 +243,22 @@ dengan apa".
 > belum lolos), `data-model.md` (DB v10 + tabel `edges` + kolom baru;
 > catatan `isGrayscale` yang basi sejak 2026-11-17 ikut diperbaiki).
 > TIDAK ADA temuan besar — tidak ada yang ditunda ke laporan terpisah.
+>
+> **Perbaikan pasca-fase-7 (2026-11-18, dari uji perangkat user):**
+> (a) **Grid latar Map beku** — grid latar (CANVAS GRID: dots/lines/graph)
+> digambar sekali di Screen (`.drawBehind` Box luar) dari kamera Board
+> (`canvasScale`/`canvasTranslateX/Y`), jadi tidak ikut zoom/geser saat
+> kamera Map yang bergerak. Perbaikan: `drawBehind` memilih kamera sesuai
+> `viewMode` (Map → `mapScale`/`mapTranslateX/Y`, Board → kamera Board);
+> rumus posisi grid (`screen = content × scale + trans`) sama dengan
+> transformasi kamera Map, jadi grid sejajar dengan node Map.
+> (b) **Switcher mengambang** — atas permintaan user, switcher Board/Map
+> keluar dari panel (panel jadi satu baris) dan menjadi pill `AnimatedVisibility`
+> terpisah di bawah panel, di atas canvas, posisi sama seperti sebelumnya
+> (tengah atas). Offset dari tinggi panel yang diukur (`onSizeChanged`,
+> `controlPanelHeightPx` + jeda 8dp), animasi masuk/keluar + sembunyi saat
+> fullscreen sama seperti panel. `testTag` tidak berubah
+> (`view_mode_switcher` / `view_mode_board` / `view_mode_map`).
 
 ## 6. Yang sengaja tidak dirancang di sini
 

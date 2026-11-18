@@ -436,9 +436,13 @@ fun DroidCanvasScreen(
                     
                     // Fine neon blue dots that adapt to theme accent
                     val gridSize = 45.dp.toPx()
-                    val scale = viewModel.canvasScale
-                    val transX = viewModel.canvasTranslateX
-                    val transY = viewModel.canvasTranslateY
+                    // Grid latar mengikuti kamera tampilan aktif: di mode Map
+                    // pakai kamera Map (mapScale/mapTranslateX/Y), bukan kamera
+                    // Board — kalau tidak, grid beku saat Map di-zoom/di-geser.
+                    val isMapMode = viewMode == MapViewMode.MAP
+                    val scale = if (isMapMode) viewModel.mapScale else viewModel.canvasScale
+                    val transX = if (isMapMode) viewModel.mapTranslateX else viewModel.canvasTranslateX
+                    val transY = if (isMapMode) viewModel.mapTranslateY else viewModel.canvasTranslateY
                     
                     val width = size.width
                     val height = size.height
@@ -1437,6 +1441,9 @@ fun DroidCanvasScreen(
             // 4. UNIFIED CONTROL PANEL (Board Switcher, Zoom, Settings, Multi-select, Arrange)
             var showArrangeMenu by remember { mutableStateOf(false) }
             var controlPanelVisible by remember { mutableStateOf(false) }
+            // Tinggi panel (px) — dipakai untuk menaruh switcher mengambang
+            // tepat di bawah panel tanpa menebak tinggi status bar / panel.
+            var controlPanelHeightPx by remember { mutableStateOf(0) }
             LaunchedEffect(Unit) {
                 controlPanelVisible = true
             }
@@ -1461,6 +1468,7 @@ fun DroidCanvasScreen(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .statusBarsPadding()
+                    .onSizeChanged { controlPanelHeightPx = it.height }
             ) {
                 Surface(
                     shape = RoundedCornerShape(24.dp),
@@ -1788,74 +1796,6 @@ fun DroidCanvasScreen(
                         }
                     }
 
-                    // Board/Map view switcher (Map view, fase 2 — K1: two
-                    // presentations over the same Board data). Board keeps the
-                    // existing infinite canvas; Map shows node cards.
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp),
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainerLow,
-                            border = BorderStroke(
-                                1.dp,
-                                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
-                            ),
-                            modifier = Modifier.testTag("view_mode_switcher")
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(4.dp),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(
-                                            if (viewMode == MapViewMode.BOARD) MaterialTheme.colorScheme.primaryContainer
-                                            else Color.Transparent
-                                        )
-                                        .clickable { viewMode = MapViewMode.BOARD }
-                                        .padding(horizontal = 16.dp, vertical = 6.dp)
-                                        .testTag("view_mode_board"),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = "Board",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (viewMode == MapViewMode.BOARD) MaterialTheme.colorScheme.onPrimaryContainer
-                                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 1
-                                    )
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(
-                                            if (viewMode == MapViewMode.MAP) MaterialTheme.colorScheme.primaryContainer
-                                            else Color.Transparent
-                                        )
-                                        .clickable { viewMode = MapViewMode.MAP }
-                                        .padding(horizontal = 16.dp, vertical = 6.dp)
-                                        .testTag("view_mode_map"),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = "Map",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (viewMode == MapViewMode.MAP) MaterialTheme.colorScheme.onPrimaryContainer
-                                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 1
-                                    )
-                                }
-                            }
-                        }
-                    }
-
                     // Secondary Toolbar: (Arrange, Lock Board, Undo, Redo)
                     // Visible only in populated state (when board has content) AND when overflow is toggled.
                     androidx.compose.animation.AnimatedVisibility(
@@ -2065,6 +2005,79 @@ fun DroidCanvasScreen(
                     }
                 }
             }
+            }
+
+            // Board/Map view switcher — pill mengambang (Map view, fase 2).
+            // Posisi tetap seperti sebelumnya (tengah atas, tepat di bawah panel),
+            // tapi kini overlay sendiri di atas canvas, terpisah dari menu:
+            // panel jadi satu baris (ringkas) dan switcher tidak makan tempat.
+            androidx.compose.animation.AnimatedVisibility(
+                visible = !isFullscreenMode && controlPanelHeightPx > 0,
+                enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
+                exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut(),
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .offset { IntOffset(0, controlPanelHeightPx + 8.dp.roundToPx()) }
+                    .offset(y = controlPanelOffsetY)
+                    .graphicsLayer { alpha = controlPanelAlpha }
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    border = BorderStroke(
+                        1.dp,
+                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                    ),
+                    modifier = Modifier.testTag("view_mode_switcher")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(
+                                    if (viewMode == MapViewMode.BOARD) MaterialTheme.colorScheme.primaryContainer
+                                    else Color.Transparent
+                                )
+                                .clickable { viewMode = MapViewMode.BOARD }
+                                .padding(horizontal = 16.dp, vertical = 6.dp)
+                                .testTag("view_mode_board"),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Board",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = if (viewMode == MapViewMode.BOARD) MaterialTheme.colorScheme.onPrimaryContainer
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(
+                                    if (viewMode == MapViewMode.MAP) MaterialTheme.colorScheme.primaryContainer
+                                    else Color.Transparent
+                                )
+                                .clickable { viewMode = MapViewMode.MAP }
+                                .padding(horizontal = 16.dp, vertical = 6.dp)
+                                .testTag("view_mode_map"),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Map",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = if (viewMode == MapViewMode.MAP) MaterialTheme.colorScheme.onPrimaryContainer
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
             }
 
             androidx.compose.animation.AnimatedVisibility(
