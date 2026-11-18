@@ -170,12 +170,15 @@ dengan apa".
 > (`noteGap` 8dp, `noteBubbleHeight` 56dp, `noteButtonSize` 36dp, satu
 > sumber di atas `MapView`) supaya hit-test dan layout tidak bisa
 > bergeser satu sama lain; celah 8dp antar elemen tetap pan seperti biasa.
-> BATASAN DIKETAHUI: di penempatan grid awal (baris 204dp), node yang
-> punya note tingginya 296dp sehingga balon/tombol `+`-nya menutupi
-> sebagian kartu di baris bawahnya sampai node itu digeser (hit-test tetap
-> benar: kontrol yang terlihat menang karena iterasi terbalik); perbaikan
-> kelak: baris grid meninggi bila berisi node bernote — belum dikerjakan,
-> di luar T8.
+> **Perbaikan grid (2026-11-18):** batasan di atas DIPERBAIKI — tinggi tiap
+> baris grid kini = tinggi node tertinggi di baris itu (232dp tanpa note,
+> 296dp dengan note), dihitung dari konstanta yang sama dengan layout dan
+> hit-test (`cardHeight`, `noteGap`, `noteBubbleHeight`, `noteButtonSize`
+> via `nodeHeightPx`/`gridRowTopYPx`); posisi y = `startY` + jumlah tinggi
+> baris di atasnya. Menambah note ke node di baris 0 menggeser semua baris
+> di bawahnya ke bawah; menghapus note mengembalikannya. Hanya node yang
+> belum diposisikan yang memakai grid — tinggi baris hanya dihitung dari
+> node-node itu (node yang sudah digeser tidak ikut mendorong baris).
 
 ## 6. Yang sengaja tidak dirancang di sini
 

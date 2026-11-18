@@ -121,8 +121,9 @@ fun MapView(
     val density = LocalDensity.current
     val context = LocalContext.current
     val cardWidth = 180.dp
-    // Thumbnail 120dp + name/label rows (~52dp). Grid cell height carries a
-    // little slack so rows never overlap if the text measures taller.
+    // Thumbnail 120dp + name/label rows (~52dp). Grid rows are NOT a fixed
+    // height: each row is as tall as its tallest node (see gridRowTopYPx),
+    // so a noted node (card + bubble + button) never overlaps the row below.
     val cardHeight = 188.dp
     val cellGap = 16.dp
     val startPadding = 16.dp
@@ -133,7 +134,6 @@ fun MapView(
     val cardWidthPx = with(density) { cardWidth.toPx() }
     val cardHeightPx = with(density) { cardHeight.toPx() }
     val cellWidthPx = with(density) { (cardWidth + cellGap).toPx() }
-    val cellHeightPx = with(density) { (cardHeight + cellGap).toPx() }
     val startXPx = with(density) { startPadding.toPx() }
     val startYPx = with(density) { startPadding.toPx() }
     val portYOffsetPx = with(density) { portCenterYOffset.toPx() }
@@ -184,10 +184,14 @@ fun MapView(
         val currentColumns by rememberUpdatedState(columns)
 
         // Node top-left positions in Map content coords (stored mapX/mapY,
-        // or a deterministic grid slot when never positioned).
+        // or a deterministic grid slot when never positioned). Row tops
+        // come from gridRowTopYPx, so rows grow with their tallest node.
+        val rowTopYPx = gridRowTopYPx(
+            items, columns, cardHeightPx, noteGapPx, noteBubbleHeightPx, noteButtonSizePx, startYPx
+        )
         val positions = items.mapIndexed { index, item ->
             item.id to effectiveMapPosition(
-                item, index, columns, cellWidthPx, cellHeightPx, startXPx, startYPx
+                item, index, columns, cellWidthPx, rowTopYPx, startXPx
             )
         }.toMap()
 
@@ -210,13 +214,18 @@ fun MapView(
                         fun toScreen(content: Offset) =
                             Offset(content.x * scaleAtDown + txAtDown, content.y * scaleAtDown + tyAtDown)
 
-                        fun positionsOf(list: List<CanvasItem>): Map<Int, Offset> =
-                            list.mapIndexed { index, item ->
+                        fun positionsOf(list: List<CanvasItem>): Map<Int, Offset> {
+                            val tops = gridRowTopYPx(
+                                list, currentColumns, cardHeightPx, noteGapPx,
+                                noteBubbleHeightPx, noteButtonSizePx, startYPx
+                            )
+                            return list.mapIndexed { index, item ->
                                 item.id to effectiveMapPosition(
                                     item, index, currentColumns,
-                                    cellWidthPx, cellHeightPx, startXPx, startYPx
+                                    cellWidthPx, tops, startXPx
                                 )
                             }.toMap()
+                        }
 
                         // Topmost first: items are drawn in list (zIndex)
                         // order, so the last one is on top.
@@ -673,23 +682,77 @@ fun MapView(
     }
 }
 
+// Full visual height of one node in Map content px: the card, then the
+// note controls below it (gap + button, plus bubble + gap when the item
+// has a note). Derived from the same constants MapNodeCard (layout) and
+// controlsAt (hit-test) use, so the three can never drift apart.
+// 232dp without a note, 296dp with one.
+private fun nodeHeightPx(
+    item: CanvasItem,
+    cardHeightPx: Float,
+    noteGapPx: Float,
+    noteBubbleHeightPx: Float,
+    noteButtonSizePx: Float
+): Float =
+    cardHeightPx + noteGapPx +
+        (if (item.note.isNotBlank()) noteBubbleHeightPx + noteGapPx else 0f) +
+        noteButtonSizePx
+
+// Top y offset of each grid row in Map content px. A row is as tall as
+// its tallest node, so a noted node never overlaps the row below; adding
+// a note to a row-0 node pushes every row below it down, removing it
+// pulls them back up. Only nodes that were never positioned (the ones
+// actually placed on the grid) count toward a row's height — a dragged
+// node's visual lives at its stored position, so it must not push grid
+// rows down. A row with no grid-placed nodes is 0 tall.
+private fun gridRowTopYPx(
+    items: List<CanvasItem>,
+    columns: Int,
+    cardHeightPx: Float,
+    noteGapPx: Float,
+    noteBubbleHeightPx: Float,
+    noteButtonSizePx: Float,
+    startYPx: Float
+): List<Float> {
+    val rows = (items.size + columns - 1) / columns
+    val tops = ArrayList<Float>(rows)
+    var y = startYPx
+    for (row in 0 until rows) {
+        tops.add(y)
+        var tallest = 0f
+        for (col in 0 until columns) {
+            val index = row * columns + col
+            if (index >= items.size) break
+            val item = items[index]
+            if (item.mapX == 0f && item.mapY == 0f) {
+                tallest = max(
+                    tallest,
+                    nodeHeightPx(item, cardHeightPx, noteGapPx, noteBubbleHeightPx, noteButtonSizePx)
+                )
+            }
+        }
+        y += tallest
+    }
+    return tops
+}
+
 // Stored mapX/mapY when the node was positioned, otherwise a deterministic
-// grid slot by index (see the MapView header comment).
+// grid slot by index (see the MapView header comment). The grid slot's y
+// comes from rowTopYPx (see gridRowTopYPx); x is the uniform column pitch.
 private fun effectiveMapPosition(
     item: CanvasItem,
     index: Int,
     columns: Int,
     cellWidthPx: Float,
-    cellHeightPx: Float,
-    startXPx: Float,
-    startYPx: Float
+    rowTopYPx: List<Float>,
+    startXPx: Float
 ): Offset {
     if (item.mapX == 0f && item.mapY == 0f) {
         val column = index % columns
         val row = index / columns
         return Offset(
             x = startXPx + column * cellWidthPx,
-            y = startYPx + row * cellHeightPx
+            y = rowTopYPx[row]
         )
     }
     return Offset(item.mapX, item.mapY)
