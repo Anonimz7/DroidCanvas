@@ -120,6 +120,32 @@ dengan apa".
 > `pastTouchSlop`), jadi menggeser area Map tidak menggerakkan Board yang
 > tersembunyi. Bottom bar dibiarkan apa adanya (aksi-aksinya milik Board;
 > di mode Map tetap berlaku untuk Board, tidak terlihat di Map).
+>
+> **Catatan implementasi fase 3 (2026-11-18):** T6 + T7 selesai — render
+> edge (kurva bezier antar port yang saling berhadapan, warna per jenis,
+> label jenis di tengah garis via `TextMeasurer`, tanpa panah; digambar DI
+> BAWAH kartu node) + gesture Map (K8): satu loop `awaitEachGesture` untuk
+> seluruh area Map — sentuhan di port (radius sentuh 28dp) mulai buat edge,
+> di kartu drag node, di ruang kosong pan/zoom; tap pada garis membuka
+> konfirmasi hapus. Kamera Map TERPISAH dari kamera Board: state di
+> ViewModel + persist debounce 1 dtk ke `canvas_view_prefs`
+> (`map_scale/trans_x/trans_y_$boardId`, pola sama seperti kamera Board),
+> dimuat di `setCurrentBoardId` — jadi bertahan saat pindah Board↔Map dan
+> saat aplikasi dibuka ulang; skala awal 1, offset 0, batas zoom 0,25–4×
+> (Board 0,01–10×). `verticalScroll` fase 2 DIHAPUS — area Map kini ruang
+> bertransformasi kamera (`graphicsLayer`). Drag node: override in-memory
+> tiap frame (pola `updateSimplicityInMemory`), SATU tulis DB saat lepas
+> (`commitMapPosition`); snapshot undo diambil SEKALI saat drag mulai
+> (sebelum override) — `saveCurrentStateToUndo()` membaca `canvasItems`
+> yang sudah termasuk override, jadi snapshot saat commit akan menangkap
+> posisi yang sudah pindah dan membuat undo no-op. Undo posisi node aman
+> untuk edge (`restoreSnapshot` update item per id, tidak menghapusnya).
+> Buat edge: tarik dari port → lepas di kartu lain → picker 8 jenis
+> (titik warna + label, pola `AlertDialog` yang sudah ada); lepas di ruang
+> kosong atau di node yang sama = batal. Garis tanpa panah = tak berarah,
+> jadi duplikat (pasangan sama + jenis sama, arah mana pun) ditolak dengan
+> Toast. Sengaja TIDAK dibuat: fling/inersia saat pan Map (Board punya;
+> v1 cukup tanpa itu), dan tombol `+` notes tetap fase 4.
 
 ## 6. Yang sengaja tidak dirancang di sini
 

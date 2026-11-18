@@ -239,6 +239,7 @@ fun DroidCanvasScreen(
     val activeBoardId by viewModel.currentBoardId.collectAsState()
     val isInitialLoadComplete by viewModel.isInitialLoadComplete.collectAsState()
     val canvasItems by viewModel.canvasItems.collectAsState()
+    val edges by viewModel.edges.collectAsState()
     val drawingStrokes by viewModel.drawingStrokes.collectAsState()
     val selectedItemId by viewModel.selectedItemId.collectAsState()
     val isMultiSelectMode by viewModel.isMultiSelectMode.collectAsState()
@@ -734,10 +735,12 @@ fun DroidCanvasScreen(
                     }
                 }
             } else {
-                // Map view (fase 2): node cards over the same Board data (K1).
-                // Edges are not drawn here yet (fase 3); notes UI is fase 4.
+                // Map view (fase 3): node cards + edges over the same Board
+                // data (K1). Notes UI is fase 4.
                 MapView(
                     items = canvasItems,
+                    edges = edges,
+                    viewModel = viewModel,
                     modifier = Modifier.fillMaxSize()
                 )
             }

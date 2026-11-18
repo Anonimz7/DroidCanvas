@@ -329,6 +329,55 @@ class DroidCanvasViewModel(
         }
     }
 
+    // Map view camera (fase 3, K8): own pan/zoom, separate from the Board
+    // camera. Same pattern as the Board camera above — ViewModel state +
+    // debounced SharedPreferences persistence per board, so the camera
+    // survives Board↔Map switches and app restarts.
+    private var _mapScale = mutableStateOf(1f)
+    var mapScale: Float
+        get() = _mapScale.value
+        set(value) {
+            if (_mapScale.value != value) {
+                _mapScale.value = value
+                schedulePersistMapState()
+            }
+        }
+
+    private var _mapTranslateX = mutableStateOf(0f)
+    var mapTranslateX: Float
+        get() = _mapTranslateX.value
+        set(value) {
+            if (_mapTranslateX.value != value) {
+                _mapTranslateX.value = value
+                schedulePersistMapState()
+            }
+        }
+
+    private var _mapTranslateY = mutableStateOf(0f)
+    var mapTranslateY: Float
+        get() = _mapTranslateY.value
+        set(value) {
+            if (_mapTranslateY.value != value) {
+                _mapTranslateY.value = value
+                schedulePersistMapState()
+            }
+        }
+
+    private var mapPersistJob: kotlinx.coroutines.Job? = null
+
+    private fun schedulePersistMapState() {
+        val boardId = _currentBoardId.value ?: return
+        mapPersistJob?.cancel()
+        mapPersistJob = viewModelScope.launch(Dispatchers.IO) {
+            kotlinx.coroutines.delay(1000)
+            prefs.edit()
+                .putFloat("map_scale_$boardId", mapScale)
+                .putFloat("map_trans_x_$boardId", mapTranslateX)
+                .putFloat("map_trans_y_$boardId", mapTranslateY)
+                .apply()
+        }
+    }
+
     // Selected item id
     private val _selectedItemId = MutableStateFlow<Int?>(null)
     val selectedItemId: StateFlow<Int?> = _selectedItemId.asStateFlow()
@@ -608,6 +657,7 @@ class DroidCanvasViewModel(
 
     private fun setCurrentBoardId(boardId: Int?) {
         persistJob?.cancel() // Cancel any pending saves when switching boards
+        mapPersistJob?.cancel()
         _loadedBoardId.value = null // Reset loaded ID immediately to trigger isLoaded = false during transition
         _currentBoardId.value = boardId
         _itemOverrides.value = emptyMap()
@@ -615,6 +665,9 @@ class DroidCanvasViewModel(
             _canvasScale.value = prefs.getFloat("board_scale_$boardId", 1f)
             _canvasTranslateX.value = prefs.getFloat("board_trans_x_$boardId", 0f)
             _canvasTranslateY.value = prefs.getFloat("board_trans_y_$boardId", 0f)
+            _mapScale.value = prefs.getFloat("map_scale_$boardId", 1f)
+            _mapTranslateX.value = prefs.getFloat("map_trans_x_$boardId", 0f)
+            _mapTranslateY.value = prefs.getFloat("map_trans_y_$boardId", 0f)
             viewModelScope.launch(Dispatchers.IO) {
                 val strokes = loadDrawingStrokes(boardId)
                 withContext(Dispatchers.Main) {
@@ -625,6 +678,9 @@ class DroidCanvasViewModel(
             _canvasScale.value = 1f
             _canvasTranslateX.value = 0f
             _canvasTranslateY.value = 0f
+            _mapScale.value = 1f
+            _mapTranslateX.value = 0f
+            _mapTranslateY.value = 0f
             _drawingStrokes.value = emptyList()
         }
         undoStack.clear()
@@ -1191,6 +1247,29 @@ class DroidCanvasViewModel(
             val sorted = stops.sortedBy { it.position }
             val json = ValueProcessor.serializeStops(sorted)
             val updated = item.copy(stopsJson = json, stopsCount = sorted.size)
+            repository.updateCanvasItem(updated)
+            _itemOverrides.update { current -> current - item.id }
+        }
+    }
+
+    // Map node position (fase 3, K8): drag updates the in-memory override
+    // every frame (like updateSimplicityInMemory — no DB write while
+    // dragging); the DB write happens once when the drag ends.
+    fun updateMapPositionInMemory(item: CanvasItem, mapX: Float, mapY: Float) {
+        val updated = item.copy(mapX = mapX, mapY = mapY)
+        _itemOverrides.update { current -> current + (item.id to updated) }
+    }
+
+    // NOTE: this does NOT take an undo snapshot. The snapshot must be taken
+    // by the UI when the drag STARTS (before any override is applied):
+    // saveCurrentStateToUndo() snapshots canvasItems, which already includes
+    // _itemOverrides — snapshotting here would capture the already-moved
+    // position and make undo a no-op. restoreSnapshot only deletes items
+    // missing from the target and updates the rest by id, so undoing a node
+    // drag is safe for edges (the item keeps its id).
+    fun commitMapPosition(item: CanvasItem, mapX: Float, mapY: Float) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val updated = item.copy(mapX = mapX, mapY = mapY)
             repository.updateCanvasItem(updated)
             _itemOverrides.update { current -> current - item.id }
         }
