@@ -25,11 +25,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -77,6 +83,15 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
+// Note controls below the node card (fase 4, K6): fixed heights, so the
+// gesture loop can hit-test the + button / bubble exactly (see controlsAt)
+// and both composables stay in sync. Bubble: 56dp fits 2 lines of
+// bodySmall + 8dp vertical padding; longer notes are ellipsized (the full
+// text lives in the edit dialog).
+private val noteGap = 8.dp
+private val noteBubbleHeight = 56.dp
+private val noteButtonSize = 36.dp
+
 // Map view (fase 3) — second presentation over the same Board data (K1):
 // one node card per image of the current board, connected by typed edges.
 // The Map is as free as the Board (K8): its own pan/zoom camera (separate
@@ -88,9 +103,14 @@ import kotlin.math.roundToInt
 // area, like the Board background handler, so no two detectors fight over
 // the same touch: a touch on a port starts an edge, on a card drags the
 // node, on empty space pans/zooms. A tap on an edge line opens the delete
-// confirmation. Edges are drawn UNDER the cards; their geometry is derived
-// from the node positions at render time (K5), so lines follow live while
-// a node is dragged. The + button for notes is fase 4 (T8), still absent.
+// confirmation. A touch starting on the note controls below a card (+
+// button, note bubble) is IGNORED by the loop (fase 4) — the clickable
+// controls handle it, so it neither drags the node nor pans the map.
+// Edges are drawn UNDER the cards; their geometry is derived from the node
+// positions at render time (K5), so lines follow live while a node is
+// dragged. Notes (fase 4, K6/O2/O4) live only in Map: a + button under each
+// card opens the note dialog; a note shows as a bubble under the card plus
+// a small comment icon on the card.
 @Composable
 fun MapView(
     items: List<CanvasItem>,
@@ -121,6 +141,13 @@ fun MapView(
     // around its center. Same radius for tapping a thin edge line.
     val portTouchRadiusPx = with(density) { 28.dp.toPx() }
     val edgeTouchRadiusPx = with(density) { 28.dp.toPx() }
+    // Note controls hit-test sizes (fase 4): same fixed heights as
+    // MapNodeCard below, in content px. The + button's touch target is a
+    // generous 28dp radius around its center, like the ports.
+    val noteGapPx = with(density) { noteGap.toPx() }
+    val noteBubbleHeightPx = with(density) { noteBubbleHeight.toPx() }
+    val noteButtonSizePx = with(density) { noteButtonSize.toPx() }
+    val noteButtonTouchRadiusPx = with(density) { 28.dp.toPx() }
 
     // Fresh data for the gesture loop: pointerInput(Unit) never restarts,
     // so the loop reads through these instead of the captured params.
@@ -133,6 +160,10 @@ fun MapView(
     var tempEdgeEnd by remember { mutableStateOf<Offset?>(null) }
     var pendingEdge by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     var edgeToDelete by remember { mutableStateOf<Edge?>(null) }
+
+    // Note dialog (fase 4, T8): the item being edited and the draft text.
+    var noteDialogItem by remember { mutableStateOf<CanvasItem?>(null) }
+    var noteDraft by remember { mutableStateOf("") }
 
     val textMeasurer = rememberTextMeasurer()
     val labelStyle = TextStyle(
@@ -212,6 +243,38 @@ fun MapView(
                             return null
                         }
 
+                        // The note controls below a card (fase 4): the note
+                        // bubble (only when the item has a note) and the
+                        // circular + button. A touch starting here belongs
+                        // to those clickables, so the loop must NOT drag
+                        // the node (and must not pan either — see IGNORED).
+                        // Hit-tested exactly (bubble rect, button circle),
+                        // so the gaps between card/bubble/button still pan.
+                        // Checked before nodeAt: the strip is below the
+                        // card, so it never overlaps the card itself.
+                        fun controlsAt(screenPos: Offset, list: List<CanvasItem>, posById: Map<Int, Offset>): CanvasItem? {
+                            for (item in list.asReversed()) {
+                                val pos = posById[item.id] ?: continue
+                                val topLeft = toScreen(pos)
+                                val hasNote = item.note.isNotBlank()
+                                val bubbleTop = topLeft.y + (cardHeightPx + noteGapPx) * scaleAtDown
+                                if (hasNote) {
+                                    val bubbleBottom = bubbleTop + noteBubbleHeightPx * scaleAtDown
+                                    if (screenPos.x in topLeft.x..(topLeft.x + cardWidthPx * scaleAtDown) &&
+                                        screenPos.y in bubbleTop..bubbleBottom
+                                    ) return item
+                                }
+                                val buttonTop = bubbleTop +
+                                    (if (hasNote) noteBubbleHeightPx + noteGapPx else 0f) * scaleAtDown
+                                val buttonCenter = Offset(
+                                    topLeft.x + cardWidthPx * scaleAtDown / 2,
+                                    buttonTop + noteButtonSizePx * scaleAtDown / 2
+                                )
+                                if ((buttonCenter - screenPos).getDistance() <= noteButtonTouchRadiusPx) return item
+                            }
+                            return null
+                        }
+
                         fun edgeAt(screenPos: Offset, list: List<CanvasItem>, edgeList: List<Edge>, posById: Map<Int, Offset>): Edge? {
                             for (edge in edgeList) {
                                 val fromPos = posById[edge.fromItemId] ?: continue
@@ -230,9 +293,11 @@ fun MapView(
                         val startList = currentItems
                         val startPositions = positionsOf(startList)
                         val sourceItem = portItemAt(downScreen, startList, startPositions)
-                        val targetItem = if (sourceItem == null) nodeAt(downScreen, startList, startPositions) else null
+                        val controlsItem = if (sourceItem == null) controlsAt(downScreen, startList, startPositions) else null
+                        val targetItem = if (sourceItem == null && controlsItem == null) nodeAt(downScreen, startList, startPositions) else null
                         val mode = when {
                             sourceItem != null -> MapDragMode.EDGE_CREATE
+                            controlsItem != null -> MapDragMode.IGNORED
                             targetItem != null -> MapDragMode.NODE_DRAG
                             else -> MapDragMode.PAN
                         }
@@ -317,6 +382,14 @@ fun MapView(
                                             }
                                         }
                                     }
+                                    MapDragMode.IGNORED -> {
+                                        // Touch on a note control (+ button
+                                        // or bubble): do nothing and consume
+                                        // nothing, so the control's own
+                                        // onClick still fires on tap, and a
+                                        // drag from here moves neither the
+                                        // node nor the map.
+                                    }
                                 }
                             }
                         } while (event.changes.any { it.pressed })
@@ -351,6 +424,10 @@ fun MapView(
                                     val hit = edgeAt(downScreen, endList, currentEdges, positionsOf(endList))
                                     if (hit != null) edgeToDelete = hit
                                 }
+                            }
+                            MapDragMode.IGNORED -> {
+                                // Touch on a note control: no-op (the
+                                // control's onClick already handled the tap).
                             }
                         }
                     }
@@ -426,6 +503,10 @@ fun MapView(
                     MapNodeCard(
                         item = item,
                         name = "Image #${index + 1}",
+                        onNoteClick = { clicked ->
+                            noteDialogItem = clicked
+                            noteDraft = clicked.note
+                        },
                         modifier = Modifier.offset {
                             IntOffset(position.x.roundToInt(), position.y.roundToInt())
                         }
@@ -535,6 +616,60 @@ fun MapView(
                 }
             )
         }
+
+        // Note dialog (fase 4, T8 / K6): add or edit the note of one node.
+        // The draft is prefilled with the current note; saving blank text
+        // clears the note (no bubble). Notes exist only in Map (O4) —
+        // nothing about notes is shown on the Board.
+        val noteItem = noteDialogItem
+        if (noteItem != null) {
+            AlertDialog(
+                onDismissRequest = { noteDialogItem = null },
+                title = {
+                    Text(
+                        text = if (noteItem.note.isBlank()) "Add note" else "Edit note",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                text = {
+                    Column(modifier = Modifier.padding(top = 8.dp)) {
+                        OutlinedTextField(
+                            value = noteDraft,
+                            onValueChange = { noteDraft = it },
+                            label = { Text("Note") },
+                            placeholder = { Text("Write a note...") },
+                            minLines = 3,
+                            maxLines = 5,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("map_note_input")
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            // Fresh item in case the list changed while the
+                            // dialog was open; blank draft clears the note.
+                            val fresh = currentItems.find { it.id == noteItem.id } ?: noteItem
+                            viewModel.updateNote(fresh, if (noteDraft.isBlank()) "" else noteDraft)
+                            noteDialogItem = null
+                        },
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("Save", fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { noteDialogItem = null }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
     }
 }
 
@@ -610,70 +745,133 @@ private fun cubicPoint(t: Float, p0: Offset, p1: Offset, p2: Offset, p3: Offset)
     )
 }
 
-private enum class MapDragMode { NODE_DRAG, EDGE_CREATE, PAN }
+private enum class MapDragMode { NODE_DRAG, EDGE_CREATE, PAN, IGNORED }
 
 @Composable
 fun MapNodeCard(
     item: CanvasItem,
     name: String,
+    onNoteClick: (CanvasItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
     // The ports sit OUTSIDE the Card (half past its left/right edge) so they
     // are not clipped by the Card's rounded shape. They are centered on the
     // thumbnail (120dp tall -> center 60dp, minus half the 12dp port = 54dp).
+    // Below the card (fase 4, K6): the note bubble (only when the item has a
+    // note) and the circular + button, which both open the note dialog. The
+    // below-card content is part of the node visual but NOT part of the
+    // node drag hit area (see controlsAt) — a drag starting there must not
+    // move the node.
     Box(
         modifier = modifier
             .width(180.dp)
             .testTag("map_node_${item.id}")
     ) {
-        Card(
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerLowest
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-            border = BorderStroke(
-                1.dp,
-                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
-            ),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column {
-                Box(
+        Column {
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLowest
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                border = BorderStroke(
+                    1.dp,
+                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(120.dp)
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                    ) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(item.thumbPath)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = name,
+                            contentScale = ContentScale.Crop,
+                            colorFilter = if (item.isGrayscale) ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) }) else null,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
+                        )
+                    }
+                    Column(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = name,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (item.note.isNotBlank()) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Icon(
+                                    imageVector = Icons.Outlined.ChatBubbleOutline,
+                                    contentDescription = "Has note",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                        Text(
+                            text = "IMAGE",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(noteGap))
+            if (item.note.isNotBlank()) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(120.dp)
-                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                        .height(noteBubbleHeight)
+                        .clickable { onNoteClick(item) }
+                        .testTag("map_note_bubble_${item.id}")
                 ) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current)
-                            .data(item.thumbPath)
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = name,
-                        contentScale = ContentScale.Crop,
-                        colorFilter = if (item.isGrayscale) ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) }) else null,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
+                    Text(
+                        text = item.note,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
                     )
                 }
-                Column(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+                Spacer(modifier = Modifier.height(noteGap))
+            }
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(noteButtonSize)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer)
+                        .clickable { onNoteClick(item) }
+                        .testTag("map_note_add_${item.id}"),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = name,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = "IMAGE",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.labelSmall,
-                        maxLines = 1
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Add note",
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }

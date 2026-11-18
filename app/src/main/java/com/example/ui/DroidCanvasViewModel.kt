@@ -1318,6 +1318,20 @@ class DroidCanvasViewModel(
         }
     }
 
+    // Map view note (fase 4, T8 / K6 / O2): one note per item, stored in
+    // the note column. Snapshot first so the edit is undoable, like
+    // togglePinItem. Saving blank text clears the note (the dialog
+    // normalizes blank to ""); saving an unchanged note is a no-op so it
+    // does not pollute the undo stack.
+    fun updateNote(item: CanvasItem, note: String) {
+        if (item.note == note) return
+        saveCurrentStateToUndo()
+        viewModelScope.launch(Dispatchers.IO) {
+            val updated = item.copy(note = note)
+            repository.updateCanvasItem(updated)
+        }
+    }
+
     // Map view edge CRUD (fase 1: thin pass-throughs; edge creation rules
     // and gestures are fase 3). No undo snapshot here — edges are not part
     // of the item snapshot stacks yet.

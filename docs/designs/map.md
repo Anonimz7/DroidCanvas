@@ -146,6 +146,36 @@ dengan apa".
 > jadi duplikat (pasangan sama + jenis sama, arah mana pun) ditolak dengan
 > Toast. Sengaja TIDAK dibuat: fling/inersia saat pan Map (Board punya;
 > v1 cukup tanpa itu), dan tombol `+` notes tetap fase 4.
+>
+> **Catatan implementasi fase 4 (2026-11-18):** T8 selesai — tombol `+`
+> lingkaran di bawah kartu (selalu ada) + balon note di bawah kartu bila
+> `note` tidak kosong (tinggi tetap 56dp, maks 2 baris + ellipsis; teks
+> penuh ada di dialog edit) + ikon komentar kecil `ChatBubbleOutline` di
+> baris nama kartu bila ada note. Tap `+` atau tap balon membuka dialog
+> yang sama (`AlertDialog` + `OutlinedTextField`, pola dialog fase 3;
+> judul Add/Edit note, tombol Save/Cancel); menyimpan teks kosong
+> menghapus note (tidak ada balon). Notes HANYA di Map (O4) — tidak ada
+> apa pun soal note di tampilan Board. Simpan lewat `updateNote` di
+> ViewModel (snapshot undo dulu seperti `togglePinItem`, lalu
+> `updateCanvasItem(item.copy(note = ...))`; menyimpan note yang tidak
+> berubah = no-op supaya tidak mengotori undo stack). RISIKO INTERAKSI:
+> loop gesture fase 3 memakai `awaitFirstDown(requireUnconsumed = false)`,
+> jadi sentuhan pada tombol/balon tetap sampai ke loop itu — ditangani
+> dengan mode `IGNORED`: `controlsAt` menguji persis area balon (kotak)
+> dan tombol `+` (lingkaran radius sentuh 28dp) SEBELUM `nodeAt`, sehingga
+> sentuhan yang dimulai di sana tidak menggeser node maupun menggeser map,
+> dan karena loop tidak mengonsumsi apa pun, `onClick` kontrol tetap
+> jalan saat tap. `nodeAt` sengaja TETAP hanya kartu (188dp) — sentuhan
+> pada balon/tombol bukan drag node. Tinggi kontrol dibuat tetap
+> (`noteGap` 8dp, `noteBubbleHeight` 56dp, `noteButtonSize` 36dp, satu
+> sumber di atas `MapView`) supaya hit-test dan layout tidak bisa
+> bergeser satu sama lain; celah 8dp antar elemen tetap pan seperti biasa.
+> BATASAN DIKETAHUI: di penempatan grid awal (baris 204dp), node yang
+> punya note tingginya 296dp sehingga balon/tombol `+`-nya menutupi
+> sebagian kartu di baris bawahnya sampai node itu digeser (hit-test tetap
+> benar: kontrol yang terlihat menang karena iterasi terbalik); perbaikan
+> kelak: baris grid meninggi bila berisi node bernote — belum dikerjakan,
+> di luar T8.
 
 ## 6. Yang sengaja tidak dirancang di sini
 
