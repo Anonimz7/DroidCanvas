@@ -125,8 +125,8 @@ Rancangan: [designs/map.md](designs/map.md)
 > node sendiri (bukan posisi kanvas); garis polos tanpa panah; garis fleksibel
 > (geometri turunan).
 
-- Rancangan sudah lengkap di `designs/map.md` (keputusan K1–K7, terbuka O1–O5,
-  to-do T1–T10). Bangun hanya bila user membuka kembali.
+- Rancangan sudah lengkap di `designs/map.md` (keputusan K1–K7 + O1–O5,
+  disetujui user 2026-11-18; to-do T1–T10). Bangun hanya bila user membuka kembali.
 - Dependensi: migrasi berikutnya (9→10) bila dikerjakan sebelum pembersihan
   kolom mati — lihat langkah 0; format export/import harus mencakup edge,
   notes, dan posisi Map (lihat langkah 1).

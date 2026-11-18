@@ -1,6 +1,7 @@
 # Rancangan: Map view — node graph di atas Board
 
-> **Status:** Rancangan — dipahami, diparkir · **Terakhir ditinjau:** 2026-11-18 · **HEAD:** `c3a14d8` ·
+> **Status:** Rancangan lengkap — keputusan O1–O5 disetujui user 2026-11-18;
+> belum dibangun · **Terakhir ditinjau:** 2026-11-18 · **HEAD:** `76f5f13` ·
 > **Merujuk:** [roadmap.md](../roadmap.md) langkah 5 · [data-model.md](../data-model.md) · [ui.md](../ui.md)
 >
 > **Asal:** dieksplorasi user 2026-11-18 dari screenshot software Kanvaz
@@ -55,15 +56,15 @@ dengan apa".
 | K6 | Notes | Per node via tombol + / tanpa notes | **Dari pengamatan:** per node via tombol +; balon di bawah kartu + ikon komentar |
 | K7 | Status | Bangun sekarang / pahami dulu | **Diputuskan user 2026-11-18:** cukup pahami dulu, diparkir |
 
-**Masih terbuka** (putuskan sebelum/saat implementasi, jangan ditebak):
+**Diputuskan 2026-11-18** (disetujui user — semua seperti rekomendasi):
 
-| # | Keputusan | Catatan |
+| # | Keputusan | Hasil |
 |---|---|---|
-| O1 | Penyimpanan posisi node Map | Kolom baru `mapX/mapY` di `CanvasItem` vs tabel terpisah. Kolom lebih sederhana; tabel terpisah lebih bersih bila Map punya data lain per node |
-| O2 | Penyimpanan notes | Kolom teks di `CanvasItem` vs tabel terpisah (satu item bisa punya >1 catatan?) |
-| O3 | Aturan hapus | Hapus gambar di Board → edge + note + posisi Map ikut hapus (usulan: ya, jangan biarkan edge menggantung) |
-| O4 | Notes di Board | Notes hanya tampil di Map, atau juga di Board? |
-| O5 | Arti counter `1/8` | Belum jelas — putuskan apakah perlu ditiru setelah dicek di Kanvaz |
+| O1 | Penyimpanan posisi node Map | Kolom `mapX`/`mapY` di `CanvasItem` |
+| O2 | Penyimpanan notes | Kolom teks `note` di `CanvasItem` (satu catatan per item) |
+| O3 | Aturan hapus | Hapus gambar → edge + note + posisi Map ikut hapus |
+| O4 | Notes di Board | Map saja (v1) |
+| O5 | Arti counter `1/8` | Tidak ditiru di v1 (artinya belum jelas) |
 
 ## 5. Rancangan
 
@@ -79,14 +80,14 @@ dengan apa".
 | # | Tugas |
 |---|---|
 | T1 | Entity `Edge` (`id`, `boardId`, `fromItemId`, `toItemId`, `type`) + DAO + migrasi berikutnya (9→10 bila dikerjakan sebelum pembersihan kolom mati; geser bila kolom mati didahulukan — lihat `roadmap.md` langkah 0) |
-| T2 | Penyimpanan posisi node Map — putuskan O1, lalu migrasi |
-| T3 | Penyimpanan notes per item — putuskan O2, lalu migrasi |
+| T2 | Kolom `mapX`/`mapY` di `CanvasItem` (O1) — migrasi |
+| T3 | Kolom teks `note` di `CanvasItem` (O2) — migrasi |
 | T4 | Enum `ConnectionType`: 8 jenis + warna + label (K3) |
 | T5 | Pengalih tampilan Board/Map + kartu node (thumbnail, nama, label IMAGE, tombol +, port di sisi) |
 | T6 | Render edge: kurva bezier antar port, warna per jenis, label jenis di tengah garis; tanpa panah (K4, K5) |
 | T7 | Gesture buat edge: tarik dari port → picker jenis → simpan; hapus edge (tap garis / menu) |
 | T8 | UI notes: tap + → input teks → balon di bawah kartu + ikon komentar (K6) |
-| T9 | Aturan hapus (O3) + export/import: edge, notes, dan posisi Map ikut format proyek — lihat `designs/export-import.md` (format harus mencakup kolom baru ini) |
+| T9 | Hapus gambar → edge + note + posisi Map ikut hapus (O3); export/import: edge, notes, dan posisi Map ikut format proyek — lihat `designs/export-import.md` (format harus mencakup kolom baru ini) |
 | T10 | Uji manual di perangkat (tidak ada tes UI otomatis hari ini): buat edge 8 jenis, geser node (garis ikut), tambah note, hapus gambar (edge ikut hilang) |
 
 ## 6. Yang sengaja tidak dirancang di sini
