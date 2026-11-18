@@ -1,8 +1,8 @@
 # Rancangan: Map view — node graph di atas Board
 
 > **Status:** Rancangan lengkap — keputusan O1–O5 + K8 disetujui user 2026-11-18;
-> fase 1–2 selesai (fase 1 di-push `97dd424`, fase 2 commit lokal `42f17c7`),
-> fase 3–7 menunggu · **Terakhir ditinjau:** 2026-11-18 · **HEAD:** `42f17c7` ·
+> fase 1–5 selesai (fase 1–4 + perbaikan grid di-push, remote `dbfa8cb`),
+> fase 6–7 menunggu · **Terakhir ditinjau:** 2026-11-18 · **HEAD:** `dbfa8cb` ·
 > **Merujuk:** [roadmap.md](../roadmap.md) langkah 5 · [data-model.md](../data-model.md) · [ui.md](../ui.md)
 >
 > **Asal:** dieksplorasi user 2026-11-18 dari screenshot software Kanvaz
@@ -181,6 +181,35 @@ dengan apa".
 > node-node itu (node yang sudah digeser tidak ikut mendorong baris).
 > Jeda 16dp antar baris ditambahkan 2026-11-18 (pitch = tinggi node +
 > `cellGap`) — baris tidak lagi bersentuhan persis.
+>
+> **Catatan implementasi fase 5 (2026-11-18):** T9, separuh pertama —
+> verifikasi O3 end-to-end (statis). Semua jalur hapus Board/CanvasItem
+> diinventarisasi dan semuanya tercakup FK CASCADE, jadi TIDAK ADA
+> perubahan kode di fase ini:
+>
+> | Jalur hapus | Mekanisme | Edge ikut hapus? |
+> |---|---|---|
+> | `deleteItem` — satu gambar (`DroidCanvasScreen.kt:3394, 3706, 5487`) | `deleteCanvasItem` → DAO `@Delete` | Ya — FK CASCADE `Edge.fromItemId/toItemId → CanvasItem.id` |
+> | `deleteSelectedItems` — multi-select (Screen:1006) | sama, per item | Ya, sama |
+> | `clearCurrentBoard` (Screen:2992) | sama, per item | Ya, sama |
+> | `deleteBoard` (Screen:2324, 4253) | `deleteBoard` → DAO `@Delete`; item TIDAK dihapus eksplisit dulu | Ya — dua jalur CASCADE: `Edge.boardId → Board.id` langsung, dan `CanvasItem.boardId → Board.id` lalu `Edge → CanvasItem` |
+> | `restoreSnapshot` (undo/redo) | item yang tidak ada di target dihapus via `deleteCanvasItem` | Ya, sama |
+>
+> note + `mapX`/`mapY` adalah kolom di baris `CanvasItem`, jadi ikut
+> terhapus bersama barisnya di semua jalur. Tidak ada jalur yang melewati
+> CASCADE: tidak ada `DELETE FROM canvas_items`/`boards` mentah di mana
+> pun (satu-satunya DELETE SQL adalah 3 `@Delete` DAO + 2 query eksplisit
+> `DELETE FROM edges`, yang justru menghapus edge itu sendiri); builder
+> Room tidak memanggil `setForeignKeyConstraintsEnabled(false)` — Room
+> mengaktifkan FK secara default, jadi CASCADE berlaku. Helper eksplisit
+> `deleteEdgesForItem`/`deleteEdgesForBoard` ada tapi tidak dipanggil
+> jalur hapus mana pun (CASCADE yang bekerja; helper itu cadangan).
+> Konsekuensi fase 1 tetap berlaku: undo yang mengembalikan item yang
+> sempat terhapus TIDAK mengembalikan edge-nya (snapshot hanya berisi
+> item). Batas verifikasi: statis saja (tanpa Android SDK di VM) —
+> penutup runtime-nya adalah T10 (hapus gambar di perangkat → edge ikut
+> hilang). Separuh kedua T9 — format export/import mencakup data Map —
+> dicatat di `designs/export-import.md` §4.1–§4.2.
 
 ## 6. Yang sengaja tidak dirancang di sini
 

@@ -1,7 +1,7 @@
 # Rancangan: Export/Import Project File
 
 > **Status:** Rancangan — belum disetujui, belum dikerjakan ·
-> **Terakhir ditinjau:** 2026-11-17 · **HEAD:** `95da467` ·
+> **Terakhir ditinjau:** 2026-11-18 · **HEAD:** `dbfa8cb` ·
 > **Merujuk:** [roadmap.md](../roadmap.md) langkah 1 · [gaps.md](../gaps.md) G5, G20 · [data-model.md](../data-model.md)
 
 ## 1. Tujuan
@@ -65,14 +65,19 @@ nama-papan.droidcanvas
   "formatVersion": 1,
   "appVersion": "0.2.0",
   "board": { "name": "…", "createdAt": 0,
-             "camera": { "scale": 1, "translateX": 0, "translateY": 0 } },
+             "camera": { "scale": 1, "translateX": 0, "translateY": 0 },
+             "mapCamera": { "scale": 1, "translateX": 0, "translateY": 0 } },
   "items": [
-    { "posX": 0, "posY": 0, "width": 0, "height": 0, "scale": 1,
+    { "uuid": "…", "posX": 0, "posY": 0, "width": 0, "height": 0, "scale": 1,
       "rotation": 0, "zIndex": 0, "isPinned": false,
       "flipHorizontal": false, "flipVertical": false,
       "isValuesEnabled": false, "simplicity": 0, "stopsCount": 3,
       "stopsJson": "", "isGrayscale": false,
+      "mapX": 0, "mapY": 0, "note": "",
       "fullFile": "images/<uuid>_full.jpg", "thumbFile": "images/<uuid>_thumb.jpg" }
+  ],
+  "edges": [
+    { "from": "<uuid>", "to": "<uuid>", "type": "RELATED_TO" }
   ],
   "strokes": [
     { "id": "…", "color": 0, "width": 8,
@@ -84,6 +89,36 @@ nama-papan.droidcanvas
 - `camera` di manifest diisi dari SharedPreferences + ViewModel saat
   ekspor (bukan dari kolom mati `Board`). Kalau K1 memutuskan kolom mati
   dipakai, sumbernya berubah — formatnya tidak berubah.
+- Data Map (fase 5 Map, 2026-11-18 — lihat `designs/map.md` T9/O3):
+  - `uuid` per item: kunci stabil di dalam arsip — uuid yang sama dengan
+    stem nama berkas gambar (`<uuid>_full.<ext>`). Dipakai HANYA sebagai
+    kunci join di dalam arsip; id baris DB yang baru selalu dibuat saat
+    impor (aturan §4.2 tetap: id dari arsip tidak pernah dipakai mentah
+    sebagai id baris). Bila stem nama berkas adalah id DB lama, ia tetap
+    hanya kunci join, bukan id baru.
+  - `edges`: `from`/`to` = uuid item, `type` = `ConnectionType.name`
+    (mis. `RELATED_TO`, `SUPPORTS` — 8 jenis, lihat
+    `ConnectionType.kt`). Validasi impor: tiap ujung harus merujuk ke
+    item yang ada di manifest dan `type` harus dikenal — bila tidak,
+    arsip ditolak (K6).
+  - `mapX`/`mapY`/`note`: posisi node + catatan per item (O1/O2 Map).
+    `mapX`/`mapY` = 0 berarti "belum diposisikan" (sentinel grid Map) —
+    impor mempertahankan 0 apa adanya.
+  - `mapCamera`: kamera Map, dari SharedPreferences `canvas_view_prefs`
+    (`map_scale/trans_x/trans_y_$boardId`) — sumber yang sama persis
+    dengan `camera` Board (`board_scale/trans_x/trans_y_$boardId`).
+    Ikut karena kamera Board ikut: mengekspor satu kamera saja akan
+    memulihkan tampilan Board tapi me-reset tampilan Map saat impor.
+    Bukan dari kolom DB (tidak ada kolom kamera Map di DB; kolom kamera
+    `Board` sendiri mati — K1).
+  - Kompatibilitas mundur: arsip lama (pra-Map, tanpa
+    `edges`/`mapX`/`mapY`/`note`/`mapCamera`) terimpor bersih — tanpa
+    edge, `mapX`/`mapY`=0, `note`="", `mapCamera` default (skala 1,
+    offset 0). Semua field Map opsional; `formatVersion` tetap 1
+    (penambahan field opsional bukan versi format baru; K6 hanya menolak
+    `formatVersion` yang tak dikenal). Sebaliknya, arsip baru yang
+    dibuka aplikasi lama (pra-Map): kunci JSON yang tak dikenal
+    diabaikan parser — papan terimpor tanpa data Map.
 - `isGrayscale` dicantumkan sekarang supaya format tidak berubah saat
   fitur grayscale jadi (lihat `grayscale.md`).
 - `strokes` ditulis dalam bentuk JSON di manifest, bukan menyalin
@@ -106,6 +141,17 @@ nama-papan.droidcanvas
   gagal, tidak ada papan setengah jadi (hapus berkas yang sudah disalin).
 - Aturan impor: `boardId` dan `id` item **selalu dibuat baru**; id dari
   arsip tidak pernah dipakai mentah.
+- Data Map saat impor: bangun peta `uuid → id baru` selagi insert item
+  (satu item = satu entri peta); setelah semua item ter-insert, insert
+  `edges` dengan `fromItemId`/`toItemId` hasil pemetaan — **dalam
+  transaksi Room yang sama** dengan Board + items, jadi edge yang
+  ujungnya tidak terpetakan membatalkan seluruh impor (bukan papan
+  setengah jadi). Validasi dulu (sebelum menyalin apa pun): tiap edge
+  merujuk ke uuid item yang ada di manifest dan `type`-nya salah satu
+  dari 8 `ConnectionType`; `mapCamera` yang hilang = default (1/0/0),
+  bukan galat. Impor berkas yang sama dua kali (T7) tetap menghasilkan
+  dua papan baru — peta uuid→id dibangun baru per impor, jadi edge tidak
+  pernah tertukar antar papan.
 
 ### 4.3 Berbagi berkas
 
@@ -140,6 +186,7 @@ nama-papan.droidcanvas
 | T7 | Impor berkas yang sama dua kali | Dua papan baru, tidak ada tabrakan id/berkas |
 | T8 | Uji manual papan besar (20+ gambar + goresan + values study) | Impor selesai tanpa ANR; values study terhitung ulang |
 | T9 | Perbarui `roadmap.md` (langkah 1 → selesai), `data-model.md`, `decisions.md` | Dokumen konsisten dengan kode |
+| T10 | Data Map ikut format: `edges` + `mapX`/`mapY` + `note` + `mapCamera`; uji round-trip + impor arsip lama | Round-trip 1 papan ber-edge kembali identik (edge, note, posisi Map, kamera Map); arsip pra-Map terimpor bersih tanpa edge |
 
 ## 6. Di luar lingkup
 
