@@ -375,10 +375,12 @@ fun MapView(
                                             val centroid = event.calculateCentroid(useCurrent = true)
                                             val centroidCoord = if (centroid != Offset.Unspecified) centroid else down.position
                                             if (zoomChange != 1f || panChange != Offset.Zero) {
+                                                // Batas zoom disamakan dengan Board (0,01–10×):
+                                                // Map sebelumnya mentok 0,25–4×.
                                                 val zoomRes = CanvasZoomHelper.computeZoom(
                                                     viewModel.mapScale, zoomChange, panChange.x, panChange.y,
                                                     viewModel.mapTranslateX, viewModel.mapTranslateY,
-                                                    centroidCoord.x, centroidCoord.y, 0.25f, 4f
+                                                    centroidCoord.x, centroidCoord.y, 0.01f, 10f
                                                 )
                                                 if (zoomRes != null) {
                                                     viewModel.mapScale = zoomRes.nextScale

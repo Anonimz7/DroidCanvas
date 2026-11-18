@@ -1711,7 +1711,7 @@ fun DroidCanvasScreen(
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
-                                ZoomPercentageText(viewModel)
+                                ZoomPercentageText(viewModel, viewMode == MapViewMode.MAP)
                             }
                         }
 
@@ -3726,9 +3726,12 @@ fun CanvasItemView(
 }
 
 @Composable
-fun ZoomPercentageText(viewModel: DroidCanvasViewModel) {
+fun ZoomPercentageText(viewModel: DroidCanvasViewModel, isMapMode: Boolean) {
+    // Angka % mengikuti kamera tampilan aktif (sebelumnya selalu kamera Board,
+    // jadi menyesatkan di mode Map).
+    val scale = if (isMapMode) viewModel.mapScale else viewModel.canvasScale
     Text(
-        text = "${(viewModel.canvasScale * 100).roundToInt()}%",
+        text = "${(scale * 100).roundToInt()}%",
         color = MaterialTheme.colorScheme.onSurface,
         style = MaterialTheme.typography.labelLarge,
         fontWeight = FontWeight.Bold

@@ -138,9 +138,9 @@ dengan apa".
 > ViewModel + persist debounce 1 dtk ke `canvas_view_prefs`
 > (`map_scale/trans_x/trans_y_$boardId`, pola sama seperti kamera Board),
 > dimuat di `setCurrentBoardId` — jadi bertahan saat pindah Board↔Map dan
-> saat aplikasi dibuka ulang; skala awal 1, offset 0, batas zoom 0,25–4×
-> (Board 0,01–10×). `verticalScroll` fase 2 DIHAPUS — area Map kini ruang
-> bertransformasi kamera (`graphicsLayer`). Drag node: override in-memory
+> saat aplikasi dibuka ulang; skala awal 1, offset 0, batas zoom 0,01–10×
+> (disamakan dengan Board 2026-11-18 atas permintaan user; semula 0,25–4×).
+> `verticalScroll` fase 2 DIHAPUS — area Map kini ruang bertransformasi kamera (`graphicsLayer`). Drag node: override in-memory
 > tiap frame (pola `updateSimplicityInMemory`), SATU tulis DB saat lepas
 > (`commitMapPosition`); snapshot undo diambil SEKALI saat drag mulai
 > (sebelum override) — `saveCurrentStateToUndo()` membaca `canvasItems`
@@ -230,7 +230,8 @@ dengan apa".
 > tidak rusak — diff `DroidCanvasScreen.kt` hanya switcher + gate gesture
 > + wrapper `if (viewMode == BOARD)` + `edges` StateFlow; (5) K1–K8/O1–O5
 > ditegakkan (8 jenis persis, tanpa panah, layout sendiri, note hanya di
-> Map, counter `1/8` tidak ditiru, kamera Map terpisah 0,25–4×, fling Map
+> Map, counter `1/8` tidak ditiru, kamera Map terpisah (batas zoom disamakan
+> dengan Board 0,01–10× pada 2026-11-18; semula 0,25–4×), fling Map
 > sengaja tidak dibuat); (6) scan kode mati — tidak ada TODO/FIXME/print,
 > semua import Map terpakai (catatan: `getValue`/`setValue` dipakai
 > implisit lewat delegasi `by`, bukan tidak terpakai). Perbaikan kecil:
