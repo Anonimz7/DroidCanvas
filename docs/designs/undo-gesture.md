@@ -9,6 +9,13 @@
 > (`DroidCanvasScreen.kt:535+`), sekali per gesture, pan/zoom dan fling
 > ditekan selama gesture. Umpan balik memakai Toast (lihat K3) — bukan
 > Snackbar, karena kode ini tidak punya `SnackbarHost`.
+>
+> **Dihapus 2026-11-18 atas perintah user:** di perangkat user gesture tiga
+> jari bentrok dengan gesture Android/ROM ponsel, dan tombol undo/redo yang
+> sudah ada dinilai cukup — pragmatis, tidak perlu gesture. Seluruh kode
+> detektor dihapus dari `DroidCanvasScreen.kt` (deklarasi, blok deteksi,
+> penekanan pan/zoom & fling saat 3 jari); `undo()`/`redo()` dan tombolnya
+> tidak disentuh. Dokumen ini disimpan sebagai arsip rancangan.
 
 ## 1. Tujuan
 

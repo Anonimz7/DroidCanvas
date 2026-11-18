@@ -67,6 +67,12 @@ Desain dulu, baru kode (satu dokumen desain per fitur, pola photocraft):
 
 ### 2. Undo/redo gesture — kecil-menengah
 
+> **Dibatalkan 2026-11-18 atas perintah user:** sempat diimplementasikan
+> (swipe tiga jari, 2026-11-17, remote `05a581c`) lalu dihapus — di perangkat
+> user bentrok dengan gesture Android/ROM ponsel; undo/redo tetap lewat
+> tombol yang sudah ada. Rancangan disimpan sebagai arsip di
+> [designs/undo-gesture.md](designs/undo-gesture.md).
+
 Rancangan: [designs/undo-gesture.md](designs/undo-gesture.md)
 
 - Pilih satu gesture (misalnya swipe dua jari / tiga jari) dan tetapkan di

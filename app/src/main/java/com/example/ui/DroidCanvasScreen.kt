@@ -550,13 +550,6 @@ fun DroidCanvasScreen(
                         velocityTracker.addPosition(down.uptimeMillis, down.position)
                         
                         var isTapCandidate = !down.isConsumed
-
-                        // Three-finger horizontal swipe = undo (left) / redo (right).
-                        // Two fingers already belong to pan/zoom, so only three fingers are free.
-                        var threeFingerPan = Offset.Zero
-                        var threeFingerZoom = 1f
-                        var threeFingerSwipeFired = false
-                        var prevPressedCount = 0
                         
                         do {
                             val event = awaitPointerEvent()
@@ -568,37 +561,6 @@ fun DroidCanvasScreen(
                                 zoom *= zoomChange
                                 pan += panChange
 
-                                // Three-finger swipe detection (undo/redo). Accumulates only
-                                // while exactly three pointers are down; resets otherwise.
-                                val pressedCount = event.changes.count { it.pressed }
-                                // Skip the event where the 3rd finger lands: the centroid
-                                // jumps toward it and would look like a swipe by itself.
-                                if (pressedCount == 3 && prevPressedCount == 3 && !threeFingerSwipeFired) {
-                                    threeFingerPan += panChange
-                                    threeFingerZoom *= zoomChange
-                                    val swipeZoomMotion = abs(1 - threeFingerZoom) * event.calculateCentroidSize(useCurrent = false)
-                                    if (abs(threeFingerPan.x) > touchSlop * 2 &&
-                                        abs(threeFingerPan.y) < touchSlop &&
-                                        swipeZoomMotion < touchSlop
-                                    ) {
-                                        threeFingerSwipeFired = true
-                                        if (threeFingerPan.x < 0) {
-                                            if (viewModel.canUndo.value) {
-                                                viewModel.undo()
-                                                Toast.makeText(context, "Undo", Toast.LENGTH_SHORT).show()
-                                            }
-                                        } else {
-                                            if (viewModel.canRedo.value) {
-                                                viewModel.redo()
-                                                Toast.makeText(context, "Redo", Toast.LENGTH_SHORT).show()
-                                            }
-                                        }
-                                    }
-                                } else if (pressedCount != 3) {
-                                    threeFingerPan = Offset.Zero
-                                    threeFingerZoom = 1f
-                                }
-                                prevPressedCount = pressedCount
                                 
                                 val centroidSize = event.calculateCentroidSize(useCurrent = false)
                                 val zoomMotion = abs(1 - zoom) * centroidSize
@@ -625,7 +587,7 @@ fun DroidCanvasScreen(
                                     
                                     val effectiveZoom = zoomChange
                                     val centroid = event.calculateCentroid(useCurrent = true)
-                                    if (pressedCount != 3 && (effectiveZoom != 1f || panChange != Offset.Zero)) {
+                                    if (effectiveZoom != 1f || panChange != Offset.Zero) {
                                         val centroidCoord = if (centroid != Offset.Unspecified) centroid else down.position
                                         val zoomRes = CanvasZoomHelper.computeZoom(
                                             viewModel.canvasScale,
@@ -661,7 +623,7 @@ fun DroidCanvasScreen(
                             if (System.currentTimeMillis() - viewModel.lastItemTapTime > 150) {
                                 viewModel.selectItem(null)
                             }
-                        } else if (!threeFingerSwipeFired) {
+                        } else {
                             val velocity = velocityTracker.calculateVelocity()
                             // Trigger dynamic physical deceleration on release
                             if (abs(velocity.x) > 150f || abs(velocity.y) > 150f) {
