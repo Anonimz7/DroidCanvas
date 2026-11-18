@@ -35,7 +35,7 @@ Undo/redo Gesture dibatalkan setelah sempat diimplementasikan lalu dihapus
 
 | Item README | Keadaan sebenarnya |
 |---|---|
-| Map view | ❌ **Belum ada** — tidak ada tampilan kedua, tidak ada model edge/notes. Rancangan di langkah 5. |
+| Map view | **Dibangun fase 1–5, belum diuji perangkat** — tampilan kedua + model edge/notes sudah ada (di-push, remote `0dceada`); menunggu uji perangkat (fase 7). Rancangan di langkah 5. |
 
 ## Urutan kerja yang diusulkan
 
@@ -116,20 +116,20 @@ Rancangan: [designs/grayscale.md](designs/grayscale.md)
 - Alternatif yang sah: nyatakan values study sebagai pengganti grayscale dan
   hapus item ini dari roadmap. Yang tidak boleh: klaim selesai tanpa kode.
 
-### 5. Map view — node graph (dipahami, diparkir)
+### 5. Map view — node graph (dibangun fase 1–5, menunggu uji perangkat)
 
 Rancangan: [designs/map.md](designs/map.md)
 
-> **Dipahami 2026-11-18, diparkir atas perintah user:** tampilan kedua di atas
-> data Board yang sama; node + edge bertipe 8 jenis + notes per node; layout
-> node sendiri (bukan posisi kanvas); garis polos tanpa panah; garis fleksibel
-> (geometri turunan).
+> **Dibangun 2026-11-18 (fase 1–5, di-push remote `0dceada`):** tampilan kedua
+> di atas data Board yang sama; node + edge bertipe 8 jenis + notes per node;
+> layout node sendiri (bukan posisi kanvas); garis polos tanpa panah; garis
+> fleksibel (geometri turunan).
 
-- Rancangan sudah lengkap di `designs/map.md` (keputusan K1–K7 + O1–O5,
-  disetujui user 2026-11-18; to-do T1–T10). Bangun hanya bila user membuka kembali.
-- Dependensi: migrasi berikutnya (9→10) bila dikerjakan sebelum pembersihan
-  kolom mati — lihat langkah 0; format export/import harus mencakup edge,
-  notes, dan posisi Map (lihat langkah 1).
+- `designs/map.md` (keputusan K1–K8 + O1–O5, disetujui user 2026-11-18;
+  to-do T1–T9 selesai, T10 menunggu uji perangkat — fase 7).
+- Migrasi 9→10 sudah jalan (tabel `edges` + kolom `mapX`/`mapY`/`note`);
+  format export/import sudah mencakup data Map (lihat langkah 1, T10 di
+  `designs/export-import.md`).
 
 ### Pekerjaan fondasi (jalan bersamaan, sebelum rilis publik)
 

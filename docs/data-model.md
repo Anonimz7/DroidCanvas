@@ -1,10 +1,10 @@
 # Model Data
 
-> **Terakhir ditinjau:** 2026-11-13 · **HEAD:** `4a4439b`
-> Sumber: `app/src/main/java/com/example/data/DroidCanvasDatabase.kt` (232 baris),
+> **Terakhir ditinjau:** 2026-11-18 · **HEAD:** `0dceada`
+> Sumber: `app/src/main/java/com/example/data/DroidCanvasDatabase.kt` (341 baris),
 > `ImageStorageHelper.kt` (189 baris), `DroidCanvasViewModel.kt` (strokes & prefs).
 
-## Room — `droid_canvas_database`, versi 8
+## Room — `droid_canvas_database`, versi 10
 
 `exportSchema = false` (tidak ada histori skema JSON) dan
 `fallbackToDestructiveMigration()` aktif — migrasi yang tidak dikenal akan
@@ -43,9 +43,29 @@ FK `boardId → boards.id` dengan `ON DELETE CASCADE`, indeks di `boardId`.
 | `simplicity` | INTEGER, default 0 | 0–100; radius blur = simplicity / 4 |
 | `stopsCount` | INTEGER, default 3 | 2–8 |
 | `stopsJson` | TEXT | Stop values study, format `posisi:warna;posisi:warna` |
+| `isGrayscale` | INTEGER | Grayscale per item (tombol di tab LAYERS; ditambah lagi migrasi 8–9) |
+| `mapX`, `mapY` | REAL, default 0 | Posisi node di Map (migrasi 9–10; 0,0 = belum diposisikan, sentinel grid) |
+| `note` | TEXT, default `''` | Catatan per item, hanya tampil di Map (migrasi 9–10) |
 
-Catatan: tidak ada kolom `isGrayscale` (lihat ADR-010). Tidak ada `createdAt`/
-`updatedAt` di item — urutan mengandalkan `zIndex` dan `id`.
+Catatan: kolom `isGrayscale` sempat dihapus di migrasi 7–8 (ADR-010) lalu
+ditambahkan lagi di migrasi 8–9 saat fitur grayscale dibangun (2026-11-17).
+Tidak ada `createdAt`/`updatedAt` di item — urutan mengandalkan `zIndex` dan `id`.
+
+### Tabel `edges` (migrasi 9–10, Map)
+
+FK `boardId → boards.id`, `fromItemId → canvas_items.id`,
+`toItemId → canvas_items.id`, semuanya `ON DELETE CASCADE`; indeks di ketiga
+kolom FK.
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| `id` | INTEGER PK autoincrement | |
+| `boardId` | INTEGER | Papan pemilik |
+| `fromItemId`, `toItemId` | INTEGER | Dua item yang dihubungkan (tanpa arah) |
+| `type` | TEXT | `ConnectionType.name` — 8 jenis (lihat `designs/map.md` K3) |
+
+Hanya dari/ke/jenis yang disimpan; geometri kurva diturunkan saat render dari
+posisi node (K5).
 
 ### DAO — `DroidCanvasDao`
 
@@ -53,12 +73,16 @@ Catatan: tidak ada kolom `isGrayscale` (lihat ADR-010). Tidak ada `createdAt`/
   insert (`REPLACE`), update, delete.
 - Items: `getItemsForBoard(boardId)` (Flow, `ORDER BY zIndex ASC`), insert
   (`REPLACE`), update, delete, `getMaxZIndex(boardId)`.
+- Edges (`EdgeDao`): `getEdgesForBoard(boardId)` (Flow), insert (`REPLACE`),
+  delete, `deleteEdgesForItem`, `deleteEdgesForBoard` (dua terakhir cadangan —
+  penghapusan jalan lewat FK CASCADE, lihat `designs/map.md` fase 5).
 - Tidak ada query pencarian, tidak ada transaksi multi-operasi — `restoreSnapshot`
   (undo) melakukan delete/insert satu per satu.
 
 ### Repository — `DroidCanvasRepository`
 
-Pembungkus tipis satu-lapis di atas DAO, tanpa logika tambahan. Semua akses Room
+Pembungkus tipis satu-lapis di atas DAO, tanpa logika tambahan (juga membungkus
+`EdgeDao`, konstruktor kedua). Semua akses Room
 dari ViewModel berjalan di `Dispatchers.IO`.
 
 ### Riwayat migrasi
@@ -72,6 +96,8 @@ dari ViewModel berjalan di `Dispatchers.IO`.
 | 5 → 6 | `canvas_items.isGrayscale` (kemudian **dihapus** di 7–8) |
 | 6 → 7 | `canvas_items.isValuesEnabled/simplicity/stopsCount/stopsJson` |
 | 7 → 8 | Tabel `canvas_items` dibuat ulang (salin → drop → rename) tanpa `isGrayscale` |
+| 8 → 9 | `canvas_items.isGrayscale` ditambahkan lagi (fitur grayscale, 2026-11-17) |
+| 9 → 10 | `canvas_items.mapX/mapY/note` + tabel `edges` (Map, 2026-11-18) |
 
 ## Berkas gambar — `filesDir`
 
@@ -108,6 +134,7 @@ Ditulis oleh `ImageStorageHelper.importImage()`:
 | Kunci | Isi |
 |---|---|
 | `board_scale_<id>`, `board_trans_x_<id>`, `board_trans_y_<id>` | Posisi kamera per papan (debounce 1 detik) |
+| `map_scale_<id>`, `map_trans_x_<id>`, `map_trans_y_<id>` | Posisi kamera Map per papan (debounce 1 detik) |
 | `is_snap_to_grid`, `snap_step_size` (40f) | Snap ke grid |
 | `arrange_spacing` (60f) | Jarak antar item auto-arrange |
 | `grid_style` (`"none"`) | Gaya grid latar |

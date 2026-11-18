@@ -78,7 +78,7 @@ cd DroidCanvas
 - [ ] Export/Import project file
 
 **Planned:**
-- [ ] Map view — node graph over the Board (typed connections + notes)
+- [ ] Map view — node graph over the Board (typed connections + notes) — built (phases 1–5), awaiting on-device test
 
 ---
 

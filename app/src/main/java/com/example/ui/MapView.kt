@@ -420,7 +420,13 @@ fun MapView(
                                 tempEdgeStart = null
                                 tempEdgeEnd = null
                                 val endList = currentItems
-                                val target = nodeAt(lastFingerScreen, endList, positionsOf(endList))
+                                val endPositions = positionsOf(endList)
+                                // The release target is the whole visual
+                                // node (card + note controls below it), not
+                                // just the card — releasing on a note bubble
+                                // or the + button still counts as that node.
+                                val target = nodeAt(lastFingerScreen, endList, endPositions)
+                                    ?: controlsAt(lastFingerScreen, endList, endPositions)
                                 if (sourceItem != null && target != null && target.id != sourceItem.id) {
                                     pendingEdge = sourceItem.id to target.id
                                 }

@@ -1350,12 +1350,6 @@ class DroidCanvasViewModel(
         }
     }
 
-    fun updateEdge(edge: Edge) {
-        viewModelScope.launch(Dispatchers.IO) {
-            repository.updateEdge(edge)
-        }
-    }
-
     fun deleteEdgesForItem(itemId: Int) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.deleteEdgesForItem(itemId)

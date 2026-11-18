@@ -1,8 +1,8 @@
 # Rancangan: Map view — node graph di atas Board
 
 > **Status:** Rancangan lengkap — keputusan O1–O5 + K8 disetujui user 2026-11-18;
-> fase 1–5 selesai (fase 1–4 + perbaikan grid di-push, remote `dbfa8cb`),
-> fase 6–7 menunggu · **Terakhir ditinjau:** 2026-11-18 · **HEAD:** `dbfa8cb` ·
+> fase 1–5 selesai (di-push, remote `0dceada`), fase 6 berjalan,
+> fase 7 menunggu uji perangkat · **Terakhir ditinjau:** 2026-11-18 · **HEAD:** `0dceada` ·
 > **Merujuk:** [roadmap.md](../roadmap.md) langkah 5 · [data-model.md](../data-model.md) · [ui.md](../ui.md)
 >
 > **Asal:** dieksplorasi user 2026-11-18 dari screenshot software Kanvaz
@@ -19,11 +19,12 @@ dengan apa".
 
 ## 2. Keadaan sekarang (fakta kode)
 
-- `Board` + `CanvasItem` (DB v9, 2 tabel): item punya `boardId`, `fullPath`,
-  `thumbPath`, `posX/posY`, ukuran, skala, rotasi, `zIndex`, flip, `isGrayscale`
-  — **tanpa satu pun field relasi antar item** (`DroidCanvasDatabase.kt:45-63`).
-- Satu tampilan saja: kanvas tak terbatas. Tidak ada tab/pengalih tampilan
-  Board vs Map.
+- `Board` + `CanvasItem` + `Edge` (DB v10, 3 tabel): item punya `boardId`,
+  `fullPath`, `thumbPath`, `posX/posY`, ukuran, skala, rotasi, `zIndex`, flip,
+  `isGrayscale`, `mapX`/`mapY` (posisi node Map, O1), `note` (O2); `Edge`
+  menghubungkan dua item dengan `type` (`DroidCanvasDatabase.kt`).
+- Dua tampilan: kanvas tak terbatas (Board) + Map (pengalih Board/Map di
+  panel kontrol atas).
 - Media sudah single-copy: berkas full + thumbnail di `filesDir`, dipakai
   ulang oleh kanvas dan daftar layer — Map tinggal memakai sumber yang sama.
 - Undo/redo lewat tombol; tidak ada gesture yang berebut dengan gesture Map
@@ -79,18 +80,18 @@ dengan apa".
 
 ### To-do
 
-| # | Tugas |
-|---|---|
-| T1 | Entity `Edge` (`id`, `boardId`, `fromItemId`, `toItemId`, `type`) + DAO + migrasi berikutnya (9→10 bila dikerjakan sebelum pembersihan kolom mati; geser bila kolom mati didahulukan — lihat `roadmap.md` langkah 0) |
-| T2 | Kolom `mapX`/`mapY` di `CanvasItem` (O1) — migrasi |
-| T3 | Kolom teks `note` di `CanvasItem` (O2) — migrasi |
-| T4 | Enum `ConnectionType`: 8 jenis + warna + label (K3) |
-| T5 | Pengalih tampilan Board/Map + kartu node (thumbnail, nama, label IMAGE, tombol +, port di sisi) |
-| T6 | Render edge: kurva bezier antar port, warna per jenis, label jenis di tengah garis; tanpa panah (K4, K5) |
-| T7 | Gesture Map (K8, fase 3): drag node — simpan `mapX`/`mapY` saat drag selesai; pan/zoom Map sendiri — geser ruang kosong = pan, pinch = zoom; buat edge: tarik dari port → picker jenis → simpan; hapus edge (tap garis / menu) |
-| T8 | UI notes: tap + → input teks → balon di bawah kartu + ikon komentar (K6) |
-| T9 | Hapus gambar → edge + note + posisi Map ikut hapus (O3); export/import: edge, notes, dan posisi Map ikut format proyek — lihat `designs/export-import.md` (format harus mencakup kolom baru ini) |
-| T10 | Uji manual di perangkat (tidak ada tes UI otomatis hari ini): buat edge 8 jenis, geser node (garis ikut), tambah note, hapus gambar (edge ikut hilang) |
+| # | Tugas | Status |
+|---|---|---|
+| T1 | Entity `Edge` (`id`, `boardId`, `fromItemId`, `toItemId`, `type`) + DAO + migrasi berikutnya (9→10 bila dikerjakan sebelum pembersihan kolom mati; geser bila kolom mati didahulukan — lihat `roadmap.md` langkah 0) | Selesai (fase 1) |
+| T2 | Kolom `mapX`/`mapY` di `CanvasItem` (O1) — migrasi | Selesai (fase 1) |
+| T3 | Kolom teks `note` di `CanvasItem` (O2) — migrasi | Selesai (fase 1) |
+| T4 | Enum `ConnectionType`: 8 jenis + warna + label (K3) | Selesai (fase 1) |
+| T5 | Pengalih tampilan Board/Map + kartu node (thumbnail, nama, label IMAGE, tombol +, port di sisi) | Selesai (fase 2; tombol + ikut fase 4) |
+| T6 | Render edge: kurva bezier antar port, warna per jenis, label jenis di tengah garis; tanpa panah (K4, K5) | Selesai (fase 3) |
+| T7 | Gesture Map (K8, fase 3): drag node — simpan `mapX`/`mapY` saat drag selesai; pan/zoom Map sendiri — geser ruang kosong = pan, pinch = zoom; buat edge: tarik dari port → picker jenis → simpan; hapus edge (tap garis / menu) | Selesai (fase 3) |
+| T8 | UI notes: tap + → input teks → balon di bawah kartu + ikon komentar (K6) | Selesai (fase 4) |
+| T9 | Hapus gambar → edge + note + posisi Map ikut hapus (O3); export/import: edge, notes, dan posisi Map ikut format proyek — lihat `designs/export-import.md` (format harus mencakup kolom baru ini) | Selesai (fase 5) |
+| T10 | Uji manual di perangkat (tidak ada tes UI otomatis hari ini): buat edge 8 jenis, geser node (garis ikut), tambah note, hapus gambar (edge ikut hilang) | Menunggu uji perangkat (fase 7) |
 
 > **Catatan implementasi fase 1 (2026-11-18):** O3 diwujudkan dengan FK
 > `CASCADE` (`Edge` → `Board`, `Edge` → `CanvasItem` dua arah) — codebase
@@ -115,7 +116,9 @@ dengan apa".
 > belum diposisikan (`mapX`/`mapY` = 0): grid deterministik dari indeks
 > item (urutan `zIndex`); (0, 0) adalah sentinel "belum diposisikan" — node
 > yang digeser tepat ke (0, 0) kembali ke slot grid-nya. Area Map bisa
-> di-scroll vertikal supaya semua kartu terjangkau. Gesture pan/zoom kanvas
+> di-scroll vertikal supaya semua kartu terjangkau (scroll ini DIHAPUS di
+> fase 3 — Map kini ruang bertransformasi kamera, lihat catatan fase 3).
+> Gesture pan/zoom kanvas
 > dimatikan saat mode Map (`pointerInput(viewMode)` + gate
 > `pastTouchSlop`), jadi menggeser area Map tidak menggerakkan Board yang
 > tersembunyi. Bottom bar dibiarkan apa adanya (aksi-aksinya milik Board;
@@ -210,6 +213,32 @@ dengan apa".
 > penutup runtime-nya adalah T10 (hapus gambar di perangkat → edge ikut
 > hilang). Separuh kedua T9 — format export/import mencakup data Map —
 > dicatat di `designs/export-import.md` §4.1–§4.2.
+>
+> **Catatan implementasi fase 6 (2026-11-18):** verifikasi statis
+> menyeluruh lintas fase atas seluruh Map (diff `f3bfbdc..HEAD`, 8 file)
+> — daftar periksa: (1) wiring migrasi 9→10/DAO/repository/`edges`
+> StateFlow/MapView terhubung; (2) grid fix di kedua jalur posisi
+> (`positions` render + `positionsOf` loop gesture memakai
+> `gridRowTopYPx` yang sama; tidak ada sisa `cellHeightPx`; baris kosong
+> tetap 0dp); (3) undo — snapshot drag sekali di awal drag sebelum
+> override, `updateNote` no-op bila tak berubah, `restoreSnapshot` tidak
+> mengembalikan edge (terdokumentasi di catatan fase 1 + 5); (4) Board
+> tidak rusak — diff `DroidCanvasScreen.kt` hanya switcher + gate gesture
+> + wrapper `if (viewMode == BOARD)` + `edges` StateFlow; (5) K1–K8/O1–O5
+> ditegakkan (8 jenis persis, tanpa panah, layout sendiri, note hanya di
+> Map, counter `1/8` tidak ditiru, kamera Map terpisah 0,25–4×, fling Map
+> sengaja tidak dibuat); (6) scan kode mati — tidak ada TODO/FIXME/print,
+> semua import Map terpakai (catatan: `getValue`/`setValue` dipakai
+> implisit lewat delegasi `by`, bukan tidak terpakai). Perbaikan kecil:
+> (a) `updateEdge` DIHAPUS (DAO + repository + ViewModel) — tidak ada
+> pemanggil; tidak ada UI edit jenis edge; (b) target lepas buat edge
+> kini seluruh visual node (kartu + balon/tombol note), bukan hanya
+> kartu — melepas di balon/tombol node lain tidak lagi membatalkan edge.
+> Dokumen diselaraskan: status T1–T9 selesai/T10 menunggu, `roadmap.md`
+> langkah 5 + tabel Planned, `README.md` (tetap belum Completed — fase 7
+> belum lolos), `data-model.md` (DB v10 + tabel `edges` + kolom baru;
+> catatan `isGrayscale` yang basi sejak 2026-11-17 ikut diperbaiki).
+> TIDAK ADA temuan besar — tidak ada yang ditunda ke laporan terpisah.
 
 ## 6. Yang sengaja tidak dirancang di sini
 

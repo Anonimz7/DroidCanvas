@@ -146,9 +146,6 @@ interface EdgeDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEdge(edge: Edge): Long
 
-    @Update
-    suspend fun updateEdge(edge: Edge)
-
     @Delete
     suspend fun deleteEdge(edge: Edge)
 
@@ -335,8 +332,6 @@ class DroidCanvasRepository(
     fun getEdgesForBoard(boardId: Int): Flow<List<Edge>> = edgeDao.getEdgesForBoard(boardId)
 
     suspend fun insertEdge(edge: Edge): Long = edgeDao.insertEdge(edge)
-
-    suspend fun updateEdge(edge: Edge) = edgeDao.updateEdge(edge)
 
     suspend fun deleteEdge(edge: Edge) = edgeDao.deleteEdge(edge)
 
