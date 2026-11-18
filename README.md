@@ -27,7 +27,7 @@ DroidCanvas brings a professional reference board experience directly to your An
 - 👌 **Precise Manipulation** — Drag, pinch-zoom, and rotate (slider) with pixel-perfect control
 - 💾 **Auto-Save** — All changes saved locally via Room database
 - 📱 **Modern UI** — Built with Jetpack Compose & Material 3
-- 🎭 **Creative Tools** — Flip, GIF support, crop, batch import
+- 🎭 **Creative Tools** — Flip, GIF support, crop, batch import, grayscale
 
 ---
 
@@ -71,14 +71,11 @@ cd DroidCanvas
 - [x] Multi-image import
 - [x] Undo/Redo
 - [x] Crop tool
+- [x] Grayscale toggle
 
 **Ongoing:**
 - [ ] Tablet optimization
 - [ ] Export/Import project file
-
-**Incompleted:**
-- [ ] Undo/redo Gesture
-- [ ] Grayscale toggle
 
 ---
 

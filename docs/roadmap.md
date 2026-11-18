@@ -1,6 +1,6 @@
 # Roadmap
 
-> **Terakhir ditinjau:** 2026-11-13 · **HEAD:** `4a4439b`
+> **Terakhir ditinjau:** 2026-11-18 · **HEAD:** `0386188`
 > Dokumen ini mengaudit roadmap di `README.md` terhadap kode. Bagian "Keadaan
 > sebenarnya" menang atas README bila bertentangan.
 
@@ -10,7 +10,7 @@
 
 | Item README | Keadaan sebenarnya | Bukti |
 |---|---|---|
-| Grayscale toggle | ❌ **Tidak ada** | Kolom `isGrayscale` ditambah migrasi 5–6 lalu dihapus 7–8; entity tanpa field itu; `ColorMatrix` diimpor tapi tak dipakai; tanpa toggle di UI. Lihat ADR-010 |
+| Grayscale toggle | ✅ **Ada** | Flag persisten per item + migrasi 8→9; `ColorFilter.colorMatrix` di kanvas & thumbnail layer; tombol di tab LAYERS (values study menang bila aktif). Teruji di perangkat 2026-11-18. Lihat ADR-010 |
 | Flip transformations | ✅ Ada | `flipHorizontal/flipVertical` persisten di DB; toggle per item |
 | Animated GIF support | ✅ Ada | Coil `GifDecoder`/`ImageDecoderDecoder` di `MainActivity`; GIF disalin mentah di `ImageStorageHelper` |
 | Auto-arrange | ✅ Ada (lebih dari klaim) | 5 layout: GRID, STRIP, COLUMN, RADIAL, SPREAD |
@@ -27,9 +27,9 @@
 
 ### Belum selesai (menurut README)
 
-| Item README | Keadaan sebenarnya |
-|---|---|
-| Undo/redo Gesture | ❌ Belum ada — undo/redo hanya lewat tombol. Tidak ada deteksi swipe/gesture untuk undo di kode. |
+Bagian ini kosong sejak 2026-11-18: Grayscale pindah ke selesai, dan
+Undo/redo Gesture dibatalkan setelah sempat diimplementasikan lalu dihapus
+(lihat langkah 2).
 
 ## Urutan kerja yang diusulkan
 
@@ -37,6 +37,10 @@ Bukan janji — urutan ini memaksimalkan agar fondasi tidak dibangun dua kali.
 Setiap langkah merujuk ke dokumen yang relevan.
 
 ### 0. Bereskan klaim (sebelum membangun apa pun) — kecil
+
+> **Selesai 2026-11-17** (remote `95da467`). Grayscale yang disebut di bawah
+> kemudian diimplementasikan 2026-11-17 dan teruji di perangkat 2026-11-18 —
+> lihat langkah 4.
 
 - Perbarui README: pindahkan crop ke selesai; hapus centang grayscale (atau
   implementasikan — lihat langkah 4); tandai export/import dan undo-gesture
@@ -94,6 +98,9 @@ Rancangan: [designs/tablet.md](designs/tablet.md)
   cakupan, bukan dari kode.
 
 ### 4. Grayscale toggle — kecil (kalau jadi dikerjakan)
+
+> **Selesai 2026-11-17, teruji di perangkat 2026-11-18** (remote `05a581c`):
+> flag persisten per item, migrasi 8→9, toggle di tab LAYERS.
 
 Rancangan: [designs/grayscale.md](designs/grayscale.md)
 
