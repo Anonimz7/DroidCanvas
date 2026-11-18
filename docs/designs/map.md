@@ -1,7 +1,8 @@
 # Rancangan: Map view — node graph di atas Board
 
-> **Status:** Rancangan lengkap — keputusan O1–O5 disetujui user 2026-11-18;
-> belum dibangun · **Terakhir ditinjau:** 2026-11-18 · **HEAD:** `76f5f13` ·
+> **Status:** Rancangan lengkap — keputusan O1–O5 + K8 disetujui user 2026-11-18;
+> fase 1–2 selesai (fase 1 di-push `97dd424`, fase 2 commit lokal `42f17c7`),
+> fase 3–7 menunggu · **Terakhir ditinjau:** 2026-11-18 · **HEAD:** `42f17c7` ·
 > **Merujuk:** [roadmap.md](../roadmap.md) langkah 5 · [data-model.md](../data-model.md) · [ui.md](../ui.md)
 >
 > **Asal:** dieksplorasi user 2026-11-18 dari screenshot software Kanvaz
@@ -55,6 +56,7 @@ dengan apa".
 | K5 | Geometri garis | Disimpan / turunan saat render | **Dari pengamatan:** turunan — yang disimpan hanya dari, ke, dan jenis; kurva digambar ulang tiap frame dari posisi node |
 | K6 | Notes | Per node via tombol + / tanpa notes | **Dari pengamatan:** per node via tombol +; balon di bawah kartu + ikon komentar |
 | K7 | Status | Bangun sekarang / pahami dulu | **Diputuskan user 2026-11-18:** cukup pahami dulu, diparkir |
+| K8 | Kebebasan Map | Scroll saja / se-bebas Board | **Diputuskan user 2026-11-18:** se-bebas Board (ikut Kanvaz) — Map punya pan/zoom sendiri dan node bisa digeser bebas; grid fase 2 hanya penempatan awal |
 
 **Diputuskan 2026-11-18** (disetujui user — semua seperti rekomendasi):
 
@@ -85,7 +87,7 @@ dengan apa".
 | T4 | Enum `ConnectionType`: 8 jenis + warna + label (K3) |
 | T5 | Pengalih tampilan Board/Map + kartu node (thumbnail, nama, label IMAGE, tombol +, port di sisi) |
 | T6 | Render edge: kurva bezier antar port, warna per jenis, label jenis di tengah garis; tanpa panah (K4, K5) |
-| T7 | Gesture buat edge: tarik dari port → picker jenis → simpan; hapus edge (tap garis / menu) |
+| T7 | Gesture Map (K8, fase 3): drag node — simpan `mapX`/`mapY` saat drag selesai; pan/zoom Map sendiri — geser ruang kosong = pan, pinch = zoom; buat edge: tarik dari port → picker jenis → simpan; hapus edge (tap garis / menu) |
 | T8 | UI notes: tap + → input teks → balon di bawah kartu + ikon komentar (K6) |
 | T9 | Hapus gambar → edge + note + posisi Map ikut hapus (O3); export/import: edge, notes, dan posisi Map ikut format proyek — lihat `designs/export-import.md` (format harus mencakup kolom baru ini) |
 | T10 | Uji manual di perangkat (tidak ada tes UI otomatis hari ini): buat edge 8 jenis, geser node (garis ikut), tambah note, hapus gambar (edge ikut hilang) |
@@ -108,8 +110,8 @@ dengan apa".
 > Yang TIDAK ikut fase 2 (sengaja): tombol `+` tidak dibuat — fungsinya
 > notes (T8/fase 4), tombol mati dilarang; **geser node tidak
 > diimplementasikan — tidak ada to-do yang mencantumkannya** (T10 hanya
-> mengujinya), perlu keputusan penempatan (diusulkan ikut fase 3 bersama
-> gesture edge, atau langkah kecil tersendiri). Penempatan awal node yang
+> mengujinya). Diputuskan user 2026-11-18 (K8): ikut fase 3 — Map se-bebas
+> Board (pan/zoom sendiri + drag node bebas); T7 diperbarui. Penempatan awal node yang
 > belum diposisikan (`mapX`/`mapY` = 0): grid deterministik dari indeks
 > item (urutan `zIndex`); (0, 0) adalah sentinel "belum diposisikan" — node
 > yang digeser tepat ke (0, 0) kembali ke slot grid-nya. Area Map bisa
