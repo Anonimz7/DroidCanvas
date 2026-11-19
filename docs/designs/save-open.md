@@ -3,7 +3,7 @@
 > **Status:** Rancangan — keputusan K1–K6 disetujui 2026-11-19 (sesuai rekomendasi), belum dibangun ·
 > Dinamai ulang Export/Import → Save/Open 2026-11-19 (keputusan user;
 > analogi Photoshop: Save/Open = berkas kerja, Export = hasil JPG/PNG) ·
-> **Terakhir ditinjau:** 2026-11-19 · **HEAD:** `c0681c1` ·
+> **Terakhir ditinjau:** 2026-11-19 · **HEAD:** `7f01519` ·
 > **Merujuk:** [roadmap.md](../roadmap.md) langkah 1 · [gaps.md](../gaps.md) G5, G20 · [data-model.md](../data-model.md)
 
 ## 1. Tujuan
@@ -87,6 +87,8 @@ nama-papan.droidcanvas
   ]
 }
 ```
+
+Skema formal + contoh lengkap: [`designs/manifest-schema.md`](manifest-schema.md) dan [`designs/manifest-example.json`](manifest-example.json) (Fase 1, T2).
 
 - `camera` di manifest diisi dari SharedPreferences + ViewModel saat
   Save (bukan dari kolom mati `Board`). Kalau K1 memutuskan kolom mati
@@ -180,7 +182,7 @@ nama-papan.droidcanvas
 | # | Kerja | Target / bukti selesai |
 |---|---|---|
 | T1 | Putuskan K1–K6 (bagian 3) | Keputusan tercatat di `decisions.md` (ADR-015, 2026-11-19) — **Selesai** |
-| T2 | Tulis skema manifest v1 sebagai dokumen (bagian 4.1) | Skema + satu contoh `manifest.json` di `docs/designs/` |
+| T2 | Tulis skema manifest v1 sebagai dokumen (bagian 4.1) | Skema + satu contoh `manifest.json` di `docs/designs/` — **Selesai** (`designs/manifest-schema.md` + `designs/manifest-example.json`, 2026-11-19) |
 | T3 | `ProjectSerializer`: Save Board+items+strokes → ZIP | Unit test: round-trip 1 papan (2 gambar + 1 goresan) kembali identik |
 | T4 | `ProjectOpener`: validasi → salin → transaksi Room | Unit test: versi tak dikenal ditolak; ZIP korup ditolak; gambar hilang ditolak; Open gagal = tidak ada papan baru |
 | T5 | `file_paths.xml`: tambah `cache-path` | Berkas ZIP dari `cacheDir` bisa dibuka lewat `FileProvider` |

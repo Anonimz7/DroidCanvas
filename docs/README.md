@@ -26,6 +26,7 @@ Aturan pemeliharaan:
 | [roadmap.md](roadmap.md) | Roadmap README **diaudit terhadap kode** + urutan kerja yang diusulkan |
 | [gaps.md](gaps.md) | Utang teknis, kode mati, dan risiko — bernomor (G1, G2, …) agar bisa dirujuk |
 | [designs/save-open.md](designs/save-open.md) | Rancangan fitur Save/Open project file (langkah 1) |
+| [designs/manifest-schema.md](designs/manifest-schema.md) | Skema manifest v1 Save/Open + contoh (`manifest-example.json`) |
 | [designs/undo-gesture.md](designs/undo-gesture.md) | Rancangan undo/redo gesture (langkah 2) |
 | [designs/tablet.md](designs/tablet.md) | Rancangan tablet optimization (langkah 3) |
 | [designs/grayscale.md](designs/grayscale.md) | Rancangan grayscale toggle (langkah 4) |
