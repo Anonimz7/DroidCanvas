@@ -67,9 +67,12 @@
 
 - **Fakta:** `build-release.yml` hanya punya langkah build bila secret keystore ada.
   Tanpa secret, job checkout + setup lalu selesai tanpa membangun apa pun — dan
-  tidak ada langkah `test` sama sekali.
+  tidak ada langkah `test` sama sekali. Tambahan 2026-11-19: unit test
+  Robolectric `@Config(sdk = [36])` tidak bisa jalan di JDK 17 ("Android SDK 36
+  requires Java 21") — job test nanti harus memakai JDK 21.
 - **Dampak:** Pull request bisa hijau tanpa pernah dikompilasi/diuji.
-- **Arah:** Tambah job `assembleDebug` + `testDebugUnitTest` yang selalu jalan.
+- **Arah:** Tambah job `assembleDebug` + `testDebugUnitTest` yang selalu jalan
+  (JDK 21).
 
 ## G8 — Hampir tidak ada tes
 
@@ -181,9 +184,29 @@
 
 ## G20 — FileProvider hanya mengekspos `downloads/`, bukan `filesDir`
 
-- **Fakta:** `file_paths.xml` hanya berisi `external-files-path/downloads/`;
-  gambar di `filesDir` internal tidak bisa dibagikan lewat provider ini.
+- **Fakta:** `file_paths.xml` berisi `external-files-path/downloads/`; gambar di
+  `filesDir` internal tidak bisa dibagikan lewat provider ini. **Perbaruan
+  2026-11-19 (Fase 3, T5):** ditambahkan `cache-path name="project_cache"` —
+  arsip `.droidcanvas` hasil Save di `cacheDir` kini bisa dibagikan lewat
+  `FileProvider`. `files-path` sengaja tidak ditambahkan: gambar di `filesDir`
+  bersifat internal dan tidak pernah dibagikan.
 - **Dampak:** Fitur berbagi/ekspor gambar nanti harus menambah path — atau
   menyalin dulu ke lokasi yang diekspos.
 - **Arah:** Perbaiki saat mengerjakan Save/Open (roadmap langkah 1), bukan
-  sekarang.
+  sekarang — sisi Save/Open sudah ditangani 2026-11-19.
+
+## G21 — `gradle-wrapper.jar` rusak ter-commit
+
+- **Fakta (2026-11-19):** `gradle/wrapper/gradle-wrapper.jar` (78 783 byte,
+  blob `0f2e77d8…`) korup — `unzip -t` gagal ("start of central directory not
+  found") dan `./gradlew` berhenti dengan "Invalid or corrupt jarfile". Isi
+  berkas penuh byte `EF BF BD` (U+FFFD): pola biner yang termangling lewat
+  konversi teks UTF-8 saat commit. Workflow Actions tidak terpengaruh karena
+  ada langkah "Generate Gradle Wrapper" (`gradle wrapper`) sebelum build.
+- **Dampak:** `./gradlew` di kloning baru selalu gagal; kontributor harus
+  punya Gradle terpasang sendiri. Berkas biner lain (mis. `screenshots/`)
+  berisiko termangling dengan pola yang sama.
+- **Arah:** Regenerasi wrapper (`gradle wrapper --gradle-version 9.3.1`) dan
+  commit ulang sebagai biner; audit berkas biner lain (bandingkan ukuran/hash
+  dengan sumbernya); periksa alat/lingkungan commit yang memperlakukan biner
+  sebagai teks.

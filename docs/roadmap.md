@@ -23,7 +23,7 @@
 |---|---|
 | Tablet optimization | ⚠️ **Sebatas breakpoint** — satu-satunya adaptasi tablet adalah sidebar tetap vs drawer pada `maxWidth >= 720.dp`. Tanpa layout khusus tablet, tanpa dukungan stylus/pen khusus, tanpa multi-window. |
 | Crop tool | ✅ **Sudah jadi** — `CropImageDialog` lengkap (rasio, handle) + `cropCanvasItem` di ViewModel. Status "berjalan" di README sudah kedaluwarsa; pindahkan ke selesai. |
-| Save/Open project file | ❌ **Belum ada sama sekali** — tidak ada serializer, format, atau UI. Satu-satunya "export" adalah `exportSchema = false` di Room (itu arti berbeda). |
+| Save/Open project file | ⚠️ **Dibangun 2026-11-19 (Fase 1–3 + sebagian Fase 4)** — format `.droidcanvas` (ZIP + manifest v1, `designs/manifest-schema.md`); `ProjectSaver` + `ProjectOpener` dengan unit test hijau (5/5 + 7/7); tombol Save + progres + berbagi lewat FileProvider sudah ada, tombol Open tinggal wiring. Lihat `designs/save-open.md` |
 
 ### Belum selesai (menurut README)
 
@@ -58,7 +58,7 @@ Setiap langkah merujuk ke dokumen yang relevan.
 
 ### 1. Save/Open project file — fitur besar berikutnya
 
-> **Keputusan K1–K6 disetujui 2026-11-19 (sesuai rekomendasi)** — lihat `designs/save-open.md` §3 (ADR-015). Fase 1 + Fase 2 selesai & di-push; Fase 4 sebagian (Save selesai & di-push `132058e`); Fase 3 dikerjakan user terpisah — lihat `designs/save-open.md` ("Fase pengerjaan").
+> **Keputusan K1–K6 disetujui 2026-11-19 (sesuai rekomendasi)** — lihat `designs/save-open.md` §3 (ADR-015). Fase 1 + Fase 2 selesai & di-push; **Fase 3 selesai 2026-11-19** (`ProjectOpener` + `ProjectOpenerTest` 7/7 hijau + `cache-path` di `file_paths.xml` — kompilasi + unit test terbukti, lihat `designs/save-open.md` §5.1); Fase 4 sebagian (Save selesai & di-push `132058e`; tombol Open tinggal wiring).
 
 Rancangan: [designs/save-open.md](designs/save-open.md)
 

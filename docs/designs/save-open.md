@@ -11,12 +11,12 @@
 | Fase | Kerja | Status (2026-11-19) |
 |---|---|---|
 | 1 | Skema manifest (T2) | Selesai & di-push (`f8d487c`) |
-| 2 | `ProjectSaver` (T3) | Kode selesai & di-push (`b1e932e`) — **BELUM TERBUKTI:** test belum pernah dieksekusi; kompilasi belum pernah dibuktikan build |
-| 3 | `ProjectOpener` + `file_paths` (T4+T5) | **BERHENTI untuk asisten** — dikerjakan user terpisah |
-| 4 | UI Save/Open (T6) | **SEBAGIAN** & di-push (`132058e`): Save selesai (tombol + progres + pesan + berbagi); Open menunggu Fase 3; berbagi menunggu T5. Kode belum pernah dibuktikan kompilasi |
-| 5 | Uji (T7, T8, T10) | Menunggu Fase 3 |
-| 6 | Dokumen penutup (T9) | Menunggu Fase 3 |
-| 7 | Uji perangkat | Menunggu Fase 3 |
+| 2 | `ProjectSaver` (T3) | Kode selesai & di-push (`b1e932e`) — **terbukti 2026-11-19:** `ProjectSaverTest` 5/5 hijau di `:app:testDebugUnitTest` (butuh JDK 21 — lihat catatan build di §5.1) |
+| 3 | `ProjectOpener` + `file_paths` (T4+T5) | **Selesai 2026-11-19** — `ProjectOpener.kt` + `ProjectOpenerTest.kt` (7/7 hijau) + `cache-path` di `file_paths.xml`, sesuai panduan §5.1; kompilasi + test terbukti (`:app:testDebugUnitTest`, JDK 21) |
+| 4 | UI Save/Open (T6) | **SEBAGIAN** & di-push (`132058e`): Save selesai (tombol + progres + pesan + berbagi — berbagi kini jalan setelah T5); tombol Open belum ada, tapi `ProjectOpener` (Fase 3) sudah tersedia — tinggal wiring. Kompilasi terbukti 2026-11-19 |
+| 5 | Uji (T7, T8, T10) | Siap dikerjakan (Fase 3 selesai 2026-11-19) |
+| 6 | Dokumen penutup (T9) | Siap dikerjakan (Fase 3 selesai 2026-11-19) |
+| 7 | Uji perangkat | Siap dikerjakan (Fase 3 selesai 2026-11-19) |
 
 ## 1. Tujuan
 
@@ -195,10 +195,10 @@ Skema formal + contoh lengkap: [`designs/manifest-schema.md`](manifest-schema.md
 |---|---|---|
 | T1 | Putuskan K1–K6 (bagian 3) | Keputusan tercatat di `decisions.md` (ADR-015, 2026-11-19) — **Selesai** |
 | T2 | Tulis skema manifest v1 sebagai dokumen (bagian 4.1) | Skema + satu contoh `manifest.json` di `docs/designs/` — **Selesai** (`designs/manifest-schema.md` + `designs/manifest-example.json`, 2026-11-19) |
-| T3 | `ProjectSerializer`: Save Board+items+strokes → ZIP | Unit test: round-trip 1 papan (2 gambar + 1 goresan) kembali identik — **Kode selesai (Fase 2, `ProjectSaver` + `ProjectSaverTest`, 2026-11-19) — BELUM TERBUKTI: test belum pernah dieksekusi dan `ProjectSaver.kt` belum pernah dibuktikan kompilasi (tanpa SDK di VM; workflow Actions hanya `assembleRelease`, tidak menjalankan unit test)** |
-| T4 | `ProjectOpener`: validasi → salin → transaksi Room | Unit test: versi tak dikenal ditolak; ZIP korup ditolak; gambar hilang ditolak; Open gagal = tidak ada papan baru |
-| T5 | `file_paths.xml`: tambah `cache-path` | Berkas ZIP dari `cacheDir` bisa dibuka lewat `FileProvider` |
-| T6 | UI Save/Open di tab BOARD + progres + pesan hasil | Uji manual: Save → kirim ke perangkat lain → Open → isi papan sama — **SEBAGIAN (Fase 4, 2026-11-19, sudah di-push remote `132058e`):** tombol Save + progres + pesan hasil selesai (ViewModel `saveProject()` + seksi PROJECT FILE di tab BOARD + berbagi via `FileProvider`/`ACTION_SEND`); berbagi baru jalan setelah `cache-path` (T5, Fase 3); tombol Open menunggu `ProjectOpener` (Fase 3, dikerjakan user terpisah). Catatan yang sama seperti T3: kode Fase 4 ini belum pernah dibuktikan kompilasi (tidak ada SDK di VM; workflow hanya `assembleRelease`) |
+| T3 | `ProjectSerializer`: Save Board+items+strokes → ZIP | Unit test: round-trip 1 papan (2 gambar + 1 goresan) kembali identik — **Kode selesai (Fase 2, `ProjectSaver` + `ProjectSaverTest`, 2026-11-19) — TERBUKTI 2026-11-19:** `ProjectSaverTest` 5/5 hijau di `:app:testDebugUnitTest` (JDK 21 + Robolectric sdk 36). Workflow Actions masih hanya `assembleRelease`, tidak menjalankan unit test (lihat G7) |
+| T4 | `ProjectOpener`: validasi → salin → transaksi Room | Unit test: versi tak dikenal ditolak; ZIP korup ditolak; gambar hilang ditolak; Open gagal = tidak ada papan baru — **Selesai 2026-11-19 (Fase 3):** `ProjectOpener.kt` + `ProjectOpenerTest.kt` (round-trip penuh + 5 penolakan + arsip pra-Map), 7/7 hijau di `:app:testDebugUnitTest` |
+| T5 | `file_paths.xml`: tambah `cache-path` | Berkas ZIP dari `cacheDir` bisa dibuka lewat `FileProvider` — **Selesai 2026-11-19 (Fase 3):** `<cache-path name="project_cache" path="." />`; `files-path` sengaja tidak ditambahkan (aturan keras 8) |
+| T6 | UI Save/Open di tab BOARD + progres + pesan hasil | Uji manual: Save → kirim ke perangkat lain → Open → isi papan sama — **SEBAGIAN (Fase 4, 2026-11-19, sudah di-push remote `132058e`):** tombol Save + progres + pesan hasil selesai (ViewModel `saveProject()` + seksi PROJECT FILE di tab BOARD + berbagi via `FileProvider`/`ACTION_SEND`); berbagi kini jalan (cache-path T5 selesai 2026-11-19); tombol Open tinggal diimplementasikan — `ProjectOpener` (Fase 3) sudah ada. Kompilasi terbukti 2026-11-19 (build debug lengkap) |
 | T7 | Buka berkas yang sama dua kali | Dua papan baru, tidak ada tabrakan id/berkas |
 | T8 | Uji manual papan besar (20+ gambar + goresan + values study) | Open selesai tanpa ANR; values study terhitung ulang |
 | T9 | Perbarui `roadmap.md` (langkah 1 → selesai), `data-model.md`, `decisions.md` | Dokumen konsisten dengan kode |
@@ -208,6 +208,21 @@ Skema formal + contoh lengkap: [`designs/manifest-schema.md`](manifest-schema.md
 
 > Fase ini dikerjakan user terpisah (2026-11-19). Panduan ini memindahkan
 > konteks yang dibutuhkan — baca dulu sebelum menulis kode.
+>
+> **Status: SELESAI 2026-11-19.** `ProjectOpener.kt` + `ProjectOpenerTest.kt`
+> (7/7 hijau) + `cache-path` di `file_paths.xml`; `:app:testDebugUnitTest`
+> hijau (19 tes, 0 gagal) dengan JDK 21 + Android SDK 36.
+>
+> Keputusan implementasi yang diambil (dari pilihan di aturan 2):
+> `ProjectOpener.open(input, filesDir, database)` menerima objek
+> `DroidCanvasDatabase` dan memakai `withTransaction` (room-ktx) untuk
+> transaksi lintas-DAO — repository & `MainActivity` tidak perlu diubah.
+> Nama berkas salinan memakai `UUID.randomUUID()` (aturan keras 3), karena id
+> DB belum diketahui sebelum insert. Catatan build: (a) Robolectric
+> `@Config(sdk = [36])` menolak JDK 17 ("Android SDK 36 requires Java 21") —
+> unit test butuh JDK 21, sedangkan workflow Actions memakai JDK 17 (lihat
+> G7); (b) `gradle/wrapper/gradle-wrapper.jar` di repo rusak — `./gradlew`
+> tidak bisa jalan, build dijalankan lewat Gradle 9.3.1 langsung (lihat G21).
 
 **Baca dulu:**
 
@@ -293,9 +308,10 @@ Skema formal + contoh lengkap: [`designs/manifest-schema.md`](manifest-schema.md
   hilang, edge tak valid (ujung tidak ada / type tak dikenal).
 - Arsip pra-Map → terbuka bersih.
 
-**Yang belum terbukti dari sini:** kompilasi + eksekusi test — tidak ada
-Android SDK di VM; bukti datang dari build GitHub Actions (workflow hanya
-`assembleRelease`, belum menjalankan unit test — lihat catatan T3).
+**Yang belum terbukti dari sini:** uji perangkat (Fase 7) — kompilasi +
+eksekusi unit test sudah dibuktikan 2026-11-19 (`:app:testDebugUnitTest`,
+JDK 21). Workflow Actions tetap hanya `assembleRelease` dan tidak menjalankan
+unit test (lihat G7 + G21).
 
 ## 6. Di luar lingkup
 
