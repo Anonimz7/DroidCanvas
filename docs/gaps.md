@@ -187,7 +187,7 @@
 - **Fakta:** `file_paths.xml` berisi `external-files-path/downloads/`; gambar di
   `filesDir` internal tidak bisa dibagikan lewat provider ini. **Perbaruan
   2026-11-19 (Fase 3, T5):** ditambahkan `cache-path name="project_cache"` —
-  arsip `.droidcanvas` hasil Save di `cacheDir` kini bisa dibagikan lewat
+  arsip `.dc` hasil Save di `cacheDir` kini bisa dibagikan lewat
   `FileProvider`. `files-path` sengaja tidak ditambahkan: gambar di `filesDir`
   bersifat internal dan tidak pernah dibagikan.
 - **Dampak:** Fitur berbagi/ekspor gambar nanti harus menambah path — atau

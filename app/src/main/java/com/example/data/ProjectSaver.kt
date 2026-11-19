@@ -12,7 +12,7 @@ import java.util.zip.ZipOutputStream
 /**
  * Save/Open project file — Saver (Fase 2, T3).
  *
- * Menulis satu papan jadi arsip `.droidcanvas`: satu ZIP berisi
+ * Menulis satu papan jadi arsip `.dc`: satu ZIP berisi
  * `manifest.json` + `images/` (pasangan full + thumb per item).
  * Format v1 sesuai `docs/designs/manifest-schema.md` dan
  * `docs/designs/save-open.md` §4.1 (K1–K6 disetujui, ADR-015).
@@ -62,7 +62,7 @@ object ProjectSaver {
     const val FORMAT_VERSION = 1
 
     /**
-     * Menulis arsip `.droidcanvas` untuk satu papan ke [outputFile].
+     * Menulis arsip `.dc` untuk satu papan ke [outputFile].
      *
      * @param board papan yang disimpan; hanya `name` dan `createdAt` yang
      *   masuk manifest (kolom mati dikecualikan, K1).

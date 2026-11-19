@@ -17,7 +17,7 @@ import java.nio.file.Files
 import java.util.zip.ZipFile
 
 /**
- * Fase 2 (T3): ProjectSaver menulis 1 papan jadi arsip `.droidcanvas`
+ * Fase 2 (T3): ProjectSaver menulis 1 papan jadi arsip `.dc`
  * dan isinya kembali identik saat dibaca ulang.
  *
  * Robolectric diperlukan karena `org.json` di JVM polos hanya stub
@@ -114,7 +114,7 @@ class ProjectSaverTest {
                 points = listOf(10f to 20f, 30f to 40f, 50f to 60f)
             )
 
-            val outputFile = File(tempDir, "papan-uji.droidcanvas")
+            val outputFile = File(tempDir, "papan-uji.dc")
             ProjectSaver.save(
                 board = board, items = listOf(item1, item2),
                 edges = listOf(edge), strokes = listOf(stroke),
@@ -217,7 +217,7 @@ class ProjectSaverTest {
         val tempDir = Files.createTempDirectory("saver-empty").toFile()
         try {
             val board = Board(id = 8, name = "Kosong", createdAt = 1795054800000L)
-            val outputFile = File(tempDir, "kosong.droidcanvas")
+            val outputFile = File(tempDir, "kosong.dc")
             ProjectSaver.save(
                 board = board, items = emptyList(), edges = emptyList(),
                 strokes = emptyList(), boardCamera = boardCamera,
@@ -246,7 +246,7 @@ class ProjectSaverTest {
         val tempDir = Files.createTempDirectory("saver-bad-edge").toFile()
         try {
             val board = Board(id = 9, name = "Papan", createdAt = 0L)
-            val outputFile = File(tempDir, "gagal.droidcanvas")
+            val outputFile = File(tempDir, "gagal.dc")
             val ex = assertThrows(IllegalArgumentException::class.java) {
                 ProjectSaver.save(
                     board = board, items = emptyList(),
@@ -271,7 +271,7 @@ class ProjectSaverTest {
                 posX = 0f, posY = 0f, width = 1f, height = 1f
             )
             val board = Board(id = 9, name = "Papan", createdAt = 0L)
-            val outputFile = File(tempDir, "gagal.droidcanvas")
+            val outputFile = File(tempDir, "gagal.dc")
             assertThrows(IllegalArgumentException::class.java) {
                 ProjectSaver.save(
                     board = board, items = listOf(item),
@@ -297,7 +297,7 @@ class ProjectSaverTest {
                 posX = 0f, posY = 0f, width = 1f, height = 1f
             )
             val board = Board(id = 9, name = "Papan", createdAt = 0L)
-            val outputFile = File(tempDir, "gagal.droidcanvas")
+            val outputFile = File(tempDir, "gagal.dc")
             assertThrows(IllegalArgumentException::class.java) {
                 ProjectSaver.save(
                     board = board, items = listOf(item), edges = emptyList(),

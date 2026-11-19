@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
     <external-files-path name="downloads" path="downloads/" />
-    <!-- T5 (Fase 3, save-open.md §4.3): arsip .droidcanvas hasil Save ditulis
+    <!-- T5 (Fase 3, save-open.md §4.3): arsip .dc hasil Save ditulis
          ke cacheDir (ProjectSaver via ViewModel.saveProject) lalu dibagikan
          lewat FileProvider + ACTION_SEND. files-path sengaja TIDAK
          ditambahkan: gambar di filesDir bersifat internal dan tidak pernah

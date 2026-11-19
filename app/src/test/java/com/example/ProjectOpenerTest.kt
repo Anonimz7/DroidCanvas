@@ -37,7 +37,7 @@ import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
 
 /**
- * Fase 3 (T4): `ProjectOpener` membuka arsip `.droidcanvas` jadi papan BARU
+ * Fase 3 (T4): `ProjectOpener` membuka arsip `.dc` jadi papan BARU
  * — validasi → salin → satu transaksi Room — dan menolak arsip yang tidak
  * valid tanpa meninggalkan papan setengah jadi / berkas yatim.
  *
@@ -124,7 +124,7 @@ class ProjectOpenerTest {
         val boardCamera = CameraState(scale = 1.25f, translateX = 100f, translateY = -50f)
         val mapCamera = CameraState(scale = 0.85f, translateX = 120f, translateY = -40f)
 
-        val archive = File(workDir, "papan-uji.droidcanvas")
+        val archive = File(workDir, "papan-uji.dc")
         ProjectSaver.save(
             board = board, items = listOf(item1, item2),
             edges = listOf(edge), strokes = listOf(stroke),
@@ -224,7 +224,7 @@ class ProjectOpenerTest {
 
     @Test
     fun `versi format tak dikenal ditolak dengan pesan yang menyebut versi`() {
-        val archive = File(workDir, "v2.droidcanvas")
+        val archive = File(workDir, "v2.dc")
         writeArchive(
             archive,
             manifestWithItem(formatVersion = 2),
@@ -235,21 +235,21 @@ class ProjectOpenerTest {
 
     @Test
     fun `zip korup ditolak`() {
-        val archive = File(workDir, "korup.droidcanvas")
+        val archive = File(workDir, "korup.dc")
         archive.writeBytes(ByteArray(32) { it.toByte() }) // byte sampah, bukan ZIP
         assertOpenFails(archive, "ZIP")
     }
 
     @Test
     fun `gambar yang dirujuk manifest tidak ada di arsip ditolak`() {
-        val archive = File(workDir, "tanpa-gambar.droidcanvas")
+        val archive = File(workDir, "tanpa-gambar.dc")
         writeArchive(archive, manifestWithItem()) // tanpa entri images/
         assertOpenFails(archive, "u1_full.jpg")
     }
 
     @Test
     fun `edge dengan ujung uuid yang tidak ada ditolak`() {
-        val archive = File(workDir, "edge-ujung-hilang.droidcanvas")
+        val archive = File(workDir, "edge-ujung-hilang.dc")
         val edges = JSONArray().put(
             JSONObject().apply {
                 put("from", "u1"); put("to", "ghost"); put("type", "PLAIN")
@@ -265,7 +265,7 @@ class ProjectOpenerTest {
 
     @Test
     fun `edge dengan type tak dikenal ditolak`() {
-        val archive = File(workDir, "edge-type-salah.droidcanvas")
+        val archive = File(workDir, "edge-type-salah.dc")
         val edges = JSONArray().put(
             JSONObject().apply {
                 put("from", "u1"); put("to", "u1"); put("type", "NOPE")
@@ -285,7 +285,7 @@ class ProjectOpenerTest {
 
     @Test
     fun `arsip pra-Map terbuka bersih - tanpa edge, map 0, note kosong, mapCamera default`() {
-        val archive = File(workDir, "pra-map.droidcanvas")
+        val archive = File(workDir, "pra-map.dc")
         val manifest = manifestWithItem() // tanpa edges/strokes/mapCamera; item tanpa mapX/mapY/note
         writeArchive(
             archive,
@@ -348,7 +348,7 @@ class ProjectOpenerTest {
             id = "stroke-1", color = -16777216, width = 8f,
             points = listOf(10f to 20f, 30f to 40f)
         )
-        val archive = File(workDir, "papan-uji.droidcanvas")
+        val archive = File(workDir, "papan-uji.dc")
         ProjectSaver.save(
             board = board, items = listOf(item), edges = emptyList(),
             strokes = listOf(stroke),
@@ -432,7 +432,7 @@ class ProjectOpenerTest {
             points = listOf(1f to 2f, 3f to 4f, 5f to 6f)
         )
         val board = Board(id = 7, name = "Papan Besar", createdAt = 1795054800000L)
-        val archive = File(workDir, "papan-besar.droidcanvas")
+        val archive = File(workDir, "papan-besar.dc")
         ProjectSaver.save(
             board = board, items = expectedItems, edges = listOf(edge),
             strokes = listOf(stroke1, stroke2),

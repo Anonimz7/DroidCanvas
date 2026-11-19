@@ -569,7 +569,7 @@ class DroidCanvasViewModel(
     }
 
     /**
-     * Save papan aktif jadi arsip `.droidcanvas` di `cacheDir` (Fase 4, T6).
+     * Save papan aktif jadi arsip `.dc` di `cacheDir` (Fase 4, T6).
      * Memetakan [DrawingStroke] ke [SavedStroke], membaca kamera Board +
      * Map dari state, lalu memanggil [ProjectSaver]. Berbagi berkas
      * (`FileProvider` + `ACTION_SEND`) dilakukan Screen saat state `Saved` —
@@ -588,7 +588,7 @@ class DroidCanvasViewModel(
                     ?: throw IllegalStateException("Papan tidak ditemukan")
                 val fileName = board.name
                     .replace(Regex("[^A-Za-z0-9._-]+"), "_")
-                    .ifEmpty { "board" } + ".droidcanvas"
+                    .ifEmpty { "board" } + ".dc"
                 val outputFile = File(appContext.cacheDir, fileName)
                 val strokes = drawingStrokes.value.map { stroke ->
                     SavedStroke(
@@ -627,7 +627,7 @@ class DroidCanvasViewModel(
         if (openState is OpenState.Opening) return
         openState = OpenState.Opening
         viewModelScope.launch(Dispatchers.IO) {
-            val tempFile = File(appContext.cacheDir, "open-${UUID.randomUUID()}.droidcanvas")
+            val tempFile = File(appContext.cacheDir, "open-${UUID.randomUUID()}.dc")
             try {
                 val input = appContext.contentResolver.openInputStream(uri)
                     ?: throw IllegalStateException("Tidak bisa membaca berkas yang dipilih")

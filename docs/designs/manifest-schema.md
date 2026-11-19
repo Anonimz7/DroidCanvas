@@ -6,7 +6,7 @@
 > **Contoh:** [manifest-example.json](manifest-example.json) (valid terhadap skema ini)
 
 Dokumen ini adalah sumber kebenaran formal untuk `manifest.json` di dalam
-arsip `.droidcanvas`. `save-open.md` §4.1 menjelaskan formatnya secara
+arsip `.dc`. `save-open.md` §4.1 menjelaskan formatnya secara
 naratif; di sini tiap field didefinisikan dengan tipe, kewajiban, nilai
 default, dan aturan validasi yang dipakai `ProjectOpener` saat Open.
 
@@ -16,7 +16,7 @@ Istilah tipe mengikuti JSON: `string`, `number` (angka, boleh desimal),
 ## 1. Arsip (ZIP)
 
 ```
-nama-papan.droidcanvas
+nama-papan.dc
 ├── manifest.json
 └── images/
     ├── <item-uuid>_full.<ext>

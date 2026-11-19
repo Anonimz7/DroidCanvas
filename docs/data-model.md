@@ -152,7 +152,7 @@ Ditulis oleh `ImageStorageHelper.importImage()`:
 - Undo/redo stacks (maks 50 snapshot) — hilang saat proses mati.
 - `activeStroke` — goresan yang sedang digambar.
 
-## Save/Open — berkas proyek `.droidcanvas` (Fase 1–5, 2026-11-19)
+## Save/Open — berkas proyek `.dc` (Fase 1–5, 2026-11-19)
 
 Format + rancangan: `designs/save-open.md`, skema formal
 `designs/manifest-schema.md` + contoh `designs/manifest-example.json`.
@@ -176,7 +176,7 @@ Format + rancangan: `designs/save-open.md`, skema formal
   staged dihapus.
 - **ViewModel:** `saveProject()` menulis ZIP ke `cacheDir` + `saveState`
   (`SaveState`); `openProject(uri)` menyalin URI ke temp
-  `open-<uuid>.droidcanvas` di `cacheDir` (dihapus di `finally`), memanggil
+  `open-<uuid>.dc` di `cacheDir` (dihapus di `finally`), memanggil
   Opener, menulis kedua kamera ke prefs **sebelum** `selectBoard` (yang
   membaca kamera dari prefs), lalu `openState` (`OpenState`). ViewModel
   menerima objek `DroidCanvasDatabase` lewat factory (ADR-016) — repository

@@ -55,7 +55,7 @@ ada adalah `exportSchema = false` di Room, dan itu arti yang berbeda.
 |---|---|---|---|
 | K1 | Kolom mati ikut manifest? | Ikut / buang | **Buang**, kecuali keputusan kolom mati (G3/G10) bilang dipakai. Manifest hanya berisi data yang hidup. |
 | K2 | Satu berkas = satu papan? | Satu papan / banyak papan | **Satu papan** untuk v1. Multi-papan = v2. |
-| K3 | Nama/ekstensi berkas | `.droidcanvas` (ZIP) / `.zip` | **`.droidcanvas`** — ZIP dengan nama sendiri, supaya bisa dibuka dari file manager. |
+| K3 | Nama/ekstensi berkas | `.dc` (ZIP) / `.zip` | **`.dc`** — ZIP dengan nama sendiri, supaya bisa dibuka dari file manager. Diubah 2026-11-19 dari `.droidcanvas` (kependekan, keputusan user); arsip `.droidcanvas` lama tetap bisa dibuka (Opener tidak memeriksa ekstensi). |
 | K4 | Konflik saat Open | Selalu papan baru / timpa bila nama sama | **Selalu papan baru** (id baru). Tanpa dialog konflik di v1. |
 | K5 | Bitmap values study ikut disimpan? | Ikut / hitung ulang | **Hitung ulang** saat Open — itu data turunan (`valuesResults` di ViewModel), bukan data papan. |
 | K6 | Versi format tak dikenal | Tolak dengan pesan / coba baca | **Tolak dengan pesan yang jelas.** |
@@ -65,7 +65,7 @@ ada adalah `exportSchema = false` di Room, dan itu arti yang berbeda.
 ### 4.1 Format: satu arsip ZIP
 
 ```
-nama-papan.droidcanvas
+nama-papan.dc
 ├── manifest.json
 └── images/
     ├── <item-uuid>_full.<ext>
@@ -177,7 +177,7 @@ Skema formal + contoh lengkap: [`designs/manifest-schema.md`](manifest-schema.md
   `application/zip`.
 - Open: `ACTION_OPEN_DOCUMENT`, MIME `application/zip` +
   `application/octet-stream` (file manager tidak selalu mengenal
-  `.droidcanvas`).
+  `.dc`).
 
 ### 4.4 UI
 

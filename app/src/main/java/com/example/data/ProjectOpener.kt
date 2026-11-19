@@ -34,7 +34,7 @@ data class OpenedProject(
 /**
  * Save/Open project file — Opener (Fase 3, T4).
  *
- * Membuka arsip `.droidcanvas` yang ditulis [ProjectSaver]: validasi penuh
+ * Membuka arsip `.dc` yang ditulis [ProjectSaver]: validasi penuh
  * → salin gambar ke `filesDir` → insert Board + items + edges dalam SATU
  * transaksi Room → tulis `drawing_strokes_<boardId>.txt`. Format manifest v1
  * mengikuti `docs/designs/manifest-schema.md`; alur mengikuti
@@ -94,7 +94,7 @@ data class OpenedProject(
 object ProjectOpener {
 
     /**
-     * Membuka satu arsip `.droidcanvas` menjadi papan BARU di [database].
+     * Membuka satu arsip `.dc` menjadi papan BARU di [database].
      *
      * @param input berkas arsip (ZIP + `manifest.json`).
      * @param filesDir direktori berkas internal aplikasi (`filesDir`) tempat

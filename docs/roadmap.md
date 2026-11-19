@@ -23,7 +23,7 @@
 |---|---|
 | Tablet optimization | ⚠️ **Sebatas breakpoint** — satu-satunya adaptasi tablet adalah sidebar tetap vs drawer pada `maxWidth >= 720.dp`. Tanpa layout khusus tablet, tanpa dukungan stylus/pen khusus, tanpa multi-window. |
 | Crop tool | ✅ **Sudah jadi** — `CropImageDialog` lengkap (rasio, handle) + `cropCanvasItem` di ViewModel. Status "berjalan" di README sudah kedaluwarsa; pindahkan ke selesai. |
-| Save/Open project file | ⚠️ **Dibangun 2026-11-19 (Fase 1–6)** — format `.droidcanvas` (ZIP + manifest v1, `designs/manifest-schema.md`); `ProjectSaver` + `ProjectOpener` dengan unit test (5/5 + 7/7 terbukti; 2 test baru T7/T8 belum dieksekusi); tombol Save + Open + progres + berbagi lewat FileProvider sudah ada. Uji manual end-to-end di Fase 7. Lihat `designs/save-open.md` |
+| Save/Open project file | ⚠️ **Dibangun 2026-11-19 (Fase 1–6)** — format `.dc` (ZIP + manifest v1, `designs/manifest-schema.md`); `ProjectSaver` + `ProjectOpener` dengan unit test (5/5 + 7/7 terbukti; 2 test baru T7/T8 belum dieksekusi); tombol Save + Open + progres + berbagi lewat FileProvider sudah ada. Uji manual end-to-end di Fase 7. Lihat `designs/save-open.md` |
 
 ### Belum selesai (menurut README)
 
