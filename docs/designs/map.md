@@ -260,6 +260,16 @@ dengan apa".
 > `controlPanelHeightPx` + jeda 8dp), animasi masuk/keluar + sembunyi saat
 > fullscreen sama seperti panel. `testTag` tidak berubah
 > (`view_mode_switcher` / `view_mode_board` / `view_mode_map`).
+> (c) **Viewport Controller mati di Map (2026-11-19)** — Reset View,
+> Fit All, dan baris Zoom/Pan di sidebar hanya menyentuh kamera Board
+> (`canvasScale`/`canvasTranslateX/Y`); pil zoom bar atas (klik = Fit)
+> juga. Perbaikan: `resetZoom`/`fitToContent` di ViewModel mendapat
+> parameter `isMapMode` (pola yang sama dengan `ZoomPercentageText`) —
+> di Map, operasikan `mapScale`/`mapTranslateX/Y`; Fit All di Map
+> menghitung kotak dari `mapX/mapY` + ukuran kartu node (180×188dp +
+> catatan, lihat `nodeHeightPx`); baris Zoom/Pan menampilkan nilai
+> kamera aktif; batas atas skala Fit di Map 10 (Board tetap 3,0).
+> `SidebarContent` kini menerima `viewMode` sebagai parameter.
 
 ## 6. Yang sengaja tidak dirancang di sini
 

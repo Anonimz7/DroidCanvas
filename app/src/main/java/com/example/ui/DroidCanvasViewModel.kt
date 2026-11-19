@@ -1646,18 +1646,26 @@ class DroidCanvasViewModel(
         }
     }
 
-    fun resetZoom() {
-        canvasScale = 1f
-        canvasTranslateX = 0f
-        canvasTranslateY = 0f
-    }
-
-    fun fitToContent(viewportWidth: Float, viewportHeight: Float, density: Float) {
-        val items = canvasItems.value
-        if (items.isEmpty()) {
+    // Viewport Controller (sidebar) + pil zoom bar atas: di mode Map
+    // operasikan kamera Map, bukan kamera Board (bug 2026-11-19: keduanya
+    // hanya menyentuh kamera Board, jadi di Map tombolnya tidak berbuat
+    // apa-apa). Penulisan lewat setter → persistensi debounce tetap jalan.
+    fun resetZoom(isMapMode: Boolean = false) {
+        if (isMapMode) {
+            mapScale = 1f
+            mapTranslateX = 0f
+            mapTranslateY = 0f
+        } else {
             canvasScale = 1f
             canvasTranslateX = 0f
             canvasTranslateY = 0f
+        }
+    }
+
+    fun fitToContent(viewportWidth: Float, viewportHeight: Float, density: Float, isMapMode: Boolean = false) {
+        val items = canvasItems.value
+        if (items.isEmpty()) {
+            resetZoom(isMapMode)
             return
         }
 
@@ -1666,41 +1674,70 @@ class DroidCanvasViewModel(
         var maxX = Float.MIN_VALUE
         var maxY = Float.MIN_VALUE
 
-        items.forEach { item ->
-            val itemWidthPx = item.width * item.scale
-            val itemHeightPx = item.height * item.scale
-            
-            val left = item.posX
-            val top = item.posY
-            val right = item.posX + itemWidthPx
-            val bottom = item.posY + itemHeightPx
-            
-            if (left < minX) minX = left
-            if (top < minY) minY = top
-            if (right > maxX) maxX = right
-            if (bottom > maxY) maxY = bottom
+        if (isMapMode) {
+            // Kotak pembatas dari posisi + ukuran kartu node Map — ukuran
+            // harus sama dengan MapView.kt (cardWidth 180dp, cardHeight
+            // 188dp, noteGap 8dp, noteBubbleHeight 56dp, noteButtonSize
+            // 36dp; lihat nodeHeightPx di sana).
+            val nodeWidthPx = 180f * density
+            items.forEach { item ->
+                val nodeHeightPx = (188f + 8f +
+                    (if (item.note.isNotBlank()) 56f + 8f else 0f) + 36f) * density
+                val left = item.mapX
+                val top = item.mapY
+                val right = item.mapX + nodeWidthPx
+                val bottom = item.mapY + nodeHeightPx
+
+                if (left < minX) minX = left
+                if (top < minY) minY = top
+                if (right > maxX) maxX = right
+                if (bottom > maxY) maxY = bottom
+            }
+        } else {
+            items.forEach { item ->
+                val itemWidthPx = item.width * item.scale
+                val itemHeightPx = item.height * item.scale
+
+                val left = item.posX
+                val top = item.posY
+                val right = item.posX + itemWidthPx
+                val bottom = item.posY + itemHeightPx
+
+                if (left < minX) minX = left
+                if (top < minY) minY = top
+                if (right > maxX) maxX = right
+                if (bottom > maxY) maxY = bottom
+            }
         }
 
         val contentWidth = maxX - minX
         val contentHeight = maxY - minY
-        
+
         val padding = 100f
         val availableWidth = (viewportWidth - padding * 2).coerceAtLeast(100f)
         val availableHeight = (viewportHeight - padding * 2).coerceAtLeast(100f)
-        
+
         val scaleX = availableWidth / contentWidth
         val scaleY = availableHeight / contentHeight
-        val newScale = minOf(scaleX, scaleY).coerceIn(0.01f, 3.0f)
-        
+        // Batas atas skala Map 10 (sama dengan clamp zoom Map 0,01–10);
+        // Board tetap di batas lamanya 3,0.
+        val newScale = minOf(scaleX, scaleY).coerceIn(0.01f, if (isMapMode) 10f else 3.0f)
+
         val contentCenterX = minX + contentWidth / 2f
         val contentCenterY = minY + contentHeight / 2f
-        
+
         val viewportCenterX = viewportWidth / 2f
         val viewportCenterY = viewportHeight / 2f
-        
-        canvasScale = newScale
-        canvasTranslateX = viewportCenterX - contentCenterX * newScale
-        canvasTranslateY = viewportCenterY - contentCenterY * newScale
+
+        if (isMapMode) {
+            mapScale = newScale
+            mapTranslateX = viewportCenterX - contentCenterX * newScale
+            mapTranslateY = viewportCenterY - contentCenterY * newScale
+        } else {
+            canvasScale = newScale
+            canvasTranslateX = viewportCenterX - contentCenterX * newScale
+            canvasTranslateY = viewportCenterY - contentCenterY * newScale
+        }
     }
 
     private var centerJob: Job? = null

@@ -343,6 +343,7 @@ fun DroidCanvasScreen(
                             viewportWidth = viewportWidth,
                             viewportHeight = viewportHeight,
                             density = density.density,
+                            viewMode = viewMode,
                             pickerLauncher = pickerLauncher,
                             onCloseSidebar = {
                                 coroutineScope.launch { drawerState.close() }
@@ -387,6 +388,7 @@ fun DroidCanvasScreen(
                                     viewportWidth = viewportWidth,
                                     viewportHeight = viewportHeight,
                                     density = density.density,
+                                    viewMode = viewMode,
                                     pickerLauncher = pickerLauncher,
                                     onCloseSidebar = { isSidebarExpanded = false },
                                     onCreateBoardClick = { showCreateBoardDialog = true },
@@ -1700,7 +1702,7 @@ fun DroidCanvasScreen(
                             modifier = Modifier
                                 .height(38.dp)
                                 .clip(RoundedCornerShape(12.dp))
-                                .clickable { viewModel.fitToContent(viewportWidth, viewportHeight, density.density) }
+                                .clickable { viewModel.fitToContent(viewportWidth, viewportHeight, density.density, viewMode == MapViewMode.MAP) }
                                 .testTag("zoom_reset_button")
                         ) {
                             Row(
@@ -3984,6 +3986,7 @@ fun SidebarContent(
     viewportWidth: Float,
     viewportHeight: Float,
     density: Float,
+    viewMode: MapViewMode,
     pickerLauncher: androidx.activity.result.ActivityResultLauncher<androidx.activity.result.PickVisualMediaRequest>,
     onCloseSidebar: () -> Unit,
     onCreateBoardClick: () -> Unit,
@@ -4502,7 +4505,7 @@ fun SidebarContent(
                                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
                                         Button(
-                                            onClick = { viewModel.resetZoom() },
+                                            onClick = { viewModel.resetZoom(viewMode == MapViewMode.MAP) },
                                             colors = ButtonDefaults.buttonColors(
                                                 containerColor = MaterialTheme.colorScheme.secondaryContainer,
                                                 contentColor = MaterialTheme.colorScheme.onSecondaryContainer
@@ -4522,7 +4525,7 @@ fun SidebarContent(
 
                                         Button(
                                             onClick = {
-                                                viewModel.fitToContent(viewportWidth, viewportHeight, density)
+                                                viewModel.fitToContent(viewportWidth, viewportHeight, density, viewMode == MapViewMode.MAP)
                                             },
                                             colors = ButtonDefaults.buttonColors(
                                                 containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -4562,7 +4565,7 @@ fun SidebarContent(
                                                 modifier = Modifier.size(12.dp)
                                             )
                                             Text(
-                                                text = "Zoom: ${(viewModel.canvasScale * 100).roundToInt()}%",
+                                                text = "Zoom: ${((if (viewMode == MapViewMode.MAP) viewModel.mapScale else viewModel.canvasScale) * 100).roundToInt()}%",
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 fontWeight = FontWeight.Medium
@@ -4579,7 +4582,7 @@ fun SidebarContent(
                                                 modifier = Modifier.size(12.dp)
                                             )
                                             Text(
-                                                text = "Pan: [${viewModel.canvasTranslateX.roundToInt()}, ${viewModel.canvasTranslateY.roundToInt()}]",
+                                                text = "Pan: [${(if (viewMode == MapViewMode.MAP) viewModel.mapTranslateX else viewModel.canvasTranslateX).roundToInt()}, ${(if (viewMode == MapViewMode.MAP) viewModel.mapTranslateY else viewModel.canvasTranslateY).roundToInt()}]",
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 fontWeight = FontWeight.Medium
