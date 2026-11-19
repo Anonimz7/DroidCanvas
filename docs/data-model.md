@@ -1,10 +1,10 @@
 # Model Data
 
-> **Terakhir ditinjau:** 2026-11-18 · **HEAD:** `0dceada`
+> **Terakhir ditinjau:** 2026-11-19 · **HEAD:** `5f6db69`
 > Sumber: `app/src/main/java/com/example/data/DroidCanvasDatabase.kt` (341 baris),
 > `ImageStorageHelper.kt` (189 baris), `DroidCanvasViewModel.kt` (strokes & prefs).
 
-## Room — `droid_canvas_database`, versi 10
+## Room — `droid_canvas_database`, versi 11
 
 `exportSchema = false` (tidak ada histori skema JSON) dan
 `fallbackToDestructiveMigration()` aktif — migrasi yang tidak dikenal akan
@@ -67,6 +67,22 @@ kolom FK.
 Hanya dari/ke/jenis yang disimpan; geometri kurva diturunkan saat render dari
 posisi node (K5).
 
+### Tabel `todos` (migrasi 10–11, Todo berbasis kanvas)
+
+FK `boardId → boards.id` `ON DELETE CASCADE`; indeks di `boardId`.
+Satu jenis objek lagi di kanvas, sejajar gambar & goresan (langkah 6, T1) —
+bukan mode/tool/tampilan. Lihat `designs/todo.md`.
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| `id` | INTEGER PK autoincrement | |
+| `boardId` | INTEGER | Papan pemilik |
+| `text` | TEXT, default `''` | Isi manual (blank todo) |
+| `done` | INTEGER, default 0 | Selesai/belum; selesai = coret + pudar (P2) |
+| `posX`, `posY` | REAL, default 0 | Posisi di Board (ruang kanvas) |
+| `mapX`, `mapY` | REAL, default 0 | Posisi node di Map (0,0 = belum diposisikan, sentinel grid seperti item) |
+| `createdAt` | INTEGER | `System.currentTimeMillis()`; urutan load `ORDER BY createdAt ASC` |
+
 ### DAO — `DroidCanvasDao`
 
 - Boards: `getAllBoards()` (Flow, `ORDER BY createdAt ASC`), `getBoardById`,
@@ -76,13 +92,16 @@ posisi node (K5).
 - Edges (`EdgeDao`): `getEdgesForBoard(boardId)` (Flow), insert (`REPLACE`),
   delete, `deleteEdgesForItem`, `deleteEdgesForBoard` (dua terakhir cadangan —
   penghapusan jalan lewat FK CASCADE, lihat `designs/map.md` fase 5).
+- Todos (`TodoDao`, migrasi 10–11): `getTodosForBoard(boardId)` (Flow,
+  `ORDER BY createdAt ASC`), insert (`REPLACE`), update, delete,
+  `deleteTodosForBoard` (cadangan — penghapusan jalan lewat FK CASCADE).
 - Tidak ada query pencarian, tidak ada transaksi multi-operasi — `restoreSnapshot`
   (undo) melakukan delete/insert satu per satu.
 
 ### Repository — `DroidCanvasRepository`
 
 Pembungkus tipis satu-lapis di atas DAO, tanpa logika tambahan (juga membungkus
-`EdgeDao`, konstruktor kedua). Semua akses Room
+`EdgeDao` + `TodoDao`, konstruktor kedua dan ketiga). Semua akses Room
 dari ViewModel berjalan di `Dispatchers.IO`.
 
 ### Riwayat migrasi
@@ -98,6 +117,7 @@ dari ViewModel berjalan di `Dispatchers.IO`.
 | 7 → 8 | Tabel `canvas_items` dibuat ulang (salin → drop → rename) tanpa `isGrayscale` |
 | 8 → 9 | `canvas_items.isGrayscale` ditambahkan lagi (fitur grayscale, 2026-11-17) |
 | 9 → 10 | `canvas_items.mapX/mapY/note` + tabel `edges` (Map, 2026-11-18) |
+| 10 → 11 | Tabel `todos` (Todo berbasis kanvas, 2026-11-19) |
 
 ## Berkas gambar — `filesDir`
 
