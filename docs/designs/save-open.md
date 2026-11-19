@@ -186,7 +186,7 @@ Skema formal + contoh lengkap: [`designs/manifest-schema.md`](manifest-schema.md
 | T3 | `ProjectSerializer`: Save Board+items+strokes → ZIP | Unit test: round-trip 1 papan (2 gambar + 1 goresan) kembali identik — **Selesai** (Fase 2, `ProjectSaver` + `ProjectSaverTest`, 2026-11-19) |
 | T4 | `ProjectOpener`: validasi → salin → transaksi Room | Unit test: versi tak dikenal ditolak; ZIP korup ditolak; gambar hilang ditolak; Open gagal = tidak ada papan baru |
 | T5 | `file_paths.xml`: tambah `cache-path` | Berkas ZIP dari `cacheDir` bisa dibuka lewat `FileProvider` |
-| T6 | UI Save/Open di tab BOARD + progres + pesan hasil | Uji manual: Save → kirim ke perangkat lain → Open → isi papan sama |
+| T6 | UI Save/Open di tab BOARD + progres + pesan hasil | Uji manual: Save → kirim ke perangkat lain → Open → isi papan sama — **SEBAGIAN (Fase 4, 2026-11-19, belum di-push):** tombol Save + progres + pesan hasil selesai (ViewModel `saveProject()` + seksi PROJECT FILE di tab BOARD + berbagi via `FileProvider`/`ACTION_SEND`); berbagi baru jalan setelah `cache-path` (T5, Fase 3); tombol Open menunggu `ProjectOpener` (Fase 3, dikerjakan user terpisah) |
 | T7 | Buka berkas yang sama dua kali | Dua papan baru, tidak ada tabrakan id/berkas |
 | T8 | Uji manual papan besar (20+ gambar + goresan + values study) | Open selesai tanpa ANR; values study terhitung ulang |
 | T9 | Perbarui `roadmap.md` (langkah 1 → selesai), `data-model.md`, `decisions.md` | Dokumen konsisten dengan kode |

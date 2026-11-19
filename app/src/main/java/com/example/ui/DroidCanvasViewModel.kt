@@ -10,12 +10,16 @@ import androidx.compose.ui.geometry.Offset
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.example.BuildConfig
 import com.example.data.Board
+import com.example.data.CameraState
 import com.example.data.CanvasItem
 import com.example.data.ConnectionType
 import com.example.data.DroidCanvasRepository
 import com.example.data.Edge
 import com.example.data.ImageStorageHelper
+import com.example.data.ProjectSaver
+import com.example.data.SavedStroke
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.onEach
@@ -55,6 +59,18 @@ data class ValuesResult(
     val distribution: List<Float>
 )
 
+/**
+ * Status Save proyek (Fase 4, T6). `Saved` membawa berkas ZIP di `cacheDir`
+ * + nama papan untuk pesan hasil; `Failed` membawa sebab kegagalan (K6).
+ * Tombol Open menunggu `ProjectOpener` (Fase 3) — belum ada di sini.
+ */
+sealed interface SaveState {
+    data object Idle : SaveState
+    data object Saving : SaveState
+    data class Saved(val file: File, val boardName: String) : SaveState
+    data class Failed(val message: String) : SaveState
+}
+
 class DroidCanvasViewModel(
     private val repository: DroidCanvasRepository,
     context: Context
@@ -74,6 +90,9 @@ class DroidCanvasViewModel(
     // Current active board ID
     private val _currentBoardId = MutableStateFlow<Int?>(null)
     val currentBoardId: StateFlow<Int?> = _currentBoardId.asStateFlow()
+
+    var saveState by mutableStateOf<SaveState>(SaveState.Idle)
+        private set
 
     private val _isInitialLoadComplete = MutableStateFlow(false)
     val isInitialLoadComplete: StateFlow<Boolean> = _isInitialLoadComplete.asStateFlow()
@@ -529,6 +548,61 @@ class DroidCanvasViewModel(
                 Log.e(TAG, "Failed to save drawing strokes", e)
             }
         }
+    }
+
+    /**
+     * Save papan aktif jadi arsip `.droidcanvas` di `cacheDir` (Fase 4, T6).
+     * Memetakan [DrawingStroke] ke [SavedStroke], membaca kamera Board +
+     * Map dari state, lalu memanggil [ProjectSaver]. Berbagi berkas
+     * (`FileProvider` + `ACTION_SEND`) dilakukan Screen saat state `Saved` —
+     * dan baru bisa jalan setelah `cache-path` (T5, Fase 3) ditambahkan.
+     */
+    fun saveProject() {
+        if (saveState is SaveState.Saving) return
+        val boardId = _currentBoardId.value ?: run {
+            saveState = SaveState.Failed("Tidak ada papan aktif")
+            return
+        }
+        saveState = SaveState.Saving
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val board = repository.getBoardById(boardId)
+                    ?: throw IllegalStateException("Papan tidak ditemukan")
+                val fileName = board.name
+                    .replace(Regex("[^A-Za-z0-9._-]+"), "_")
+                    .ifEmpty { "board" } + ".droidcanvas"
+                val outputFile = File(appContext.cacheDir, fileName)
+                val strokes = drawingStrokes.value.map { stroke ->
+                    SavedStroke(
+                        id = stroke.id,
+                        color = stroke.color,
+                        width = stroke.strokeWidth,
+                        points = stroke.points.map { it.x to it.y }
+                    )
+                }
+                ProjectSaver.save(
+                    board = board,
+                    items = canvasItems.value,
+                    edges = edges.value,
+                    strokes = strokes,
+                    boardCamera = CameraState(canvasScale, canvasTranslateX, canvasTranslateY),
+                    mapCamera = CameraState(mapScale, mapTranslateX, mapTranslateY),
+                    appVersion = BuildConfig.VERSION_NAME,
+                    outputFile = outputFile
+                )
+                withContext(Dispatchers.Main) {
+                    saveState = SaveState.Saved(outputFile, board.name)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to save project", e)
+                val cause = e.message ?: "Gagal menyimpan papan"
+                withContext(Dispatchers.Main) { saveState = SaveState.Failed(cause) }
+            }
+        }
+    }
+
+    fun clearSaveState() {
+        saveState = SaveState.Idle
     }
 
     fun loadDrawingStrokes(boardId: Int): List<DrawingStroke> {

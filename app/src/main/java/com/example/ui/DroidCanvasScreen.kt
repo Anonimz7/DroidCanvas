@@ -1,6 +1,8 @@
 package com.example.ui
 
+import android.content.Intent
 import android.widget.Toast
+import androidx.core.content.FileProvider
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -216,10 +218,12 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.PI
@@ -4006,6 +4010,7 @@ fun SidebarContent(
     // Collapsible states
     var isWorkspacesExpanded by remember { mutableStateOf(true) }
     var isViewportExpanded by remember { mutableStateOf(true) }
+    var isProjectFileExpanded by remember { mutableStateOf(true) }
     var isLayersExpanded by remember { mutableStateOf(true) }
     var isDrawingExpanded by remember { mutableStateOf(true) }
     var isSettingsExpanded by remember { mutableStateOf(true) }
@@ -4140,6 +4145,63 @@ fun SidebarContent(
             ) { tab ->
                 when (tab) {
                 SidebarTab.BOARD -> {
+                    // Save/Open proyek (Fase 4, T6): hasil Save dibagikan
+                    // lewat FileProvider + ACTION_SEND; berbagi baru bisa
+                    // jalan setelah cache-path (T5, Fase 3) ditambahkan.
+                    val context = LocalContext.current
+                    val saveState = viewModel.saveState
+                    LaunchedEffect(saveState) {
+                        when (val state = saveState) {
+                            is SaveState.Saved -> {
+                                var shared = false
+                                try {
+                                    val uri = FileProvider.getUriForFile(
+                                        context,
+                                        "${BuildConfig.APPLICATION_ID}.fileprovider",
+                                        state.file
+                                    )
+                                    val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "application/zip"
+                                        putExtra(Intent.EXTRA_STREAM, uri)
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+                                    context.startActivity(
+                                        Intent.createChooser(sendIntent, "Bagikan papan")
+                                    )
+                                    shared = true
+                                } catch (e: Exception) {
+                                    // FileProvider belum mengenal cacheDir
+                                    // (cache-path T5 belum ada) — berkas
+                                    // sudah tersimpan, berbagi menyusul.
+                                    shared = false
+                                }
+                                if (shared) {
+                                    Toast.makeText(
+                                        context,
+                                        "Papan '${state.boardName}' berhasil disimpan",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                } else {
+                                    Toast.makeText(
+                                        context,
+                                        "Papan '${state.boardName}' tersimpan, berbagi menyusul setelah cache-path ditambahkan",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                                viewModel.clearSaveState()
+                            }
+                            is SaveState.Failed -> {
+                                Toast.makeText(
+                                    context,
+                                    "Gagal menyimpan: ${state.message}",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                                viewModel.clearSaveState()
+                            }
+                            else -> Unit
+                        }
+                    }
+
                     Column(
                         verticalArrangement = Arrangement.spacedBy(20.dp),
                         modifier = Modifier.fillMaxWidth()
@@ -4281,6 +4343,65 @@ fun SidebarContent(
                                             }
                                         }
                                     }
+                                }
+                            }
+                        }
+                    }
+
+                    // Divider
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+                    )
+
+                    // Section 2b: Project File (Save/Open — Fase 4, T6).
+                    // Tombol Open menyusul setelah ProjectOpener (Fase 3) ada.
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SidebarSectionHeader(
+                            title = "PROJECT FILE",
+                            isExpanded = isProjectFileExpanded,
+                            onToggle = { isProjectFileExpanded = !isProjectFileExpanded }
+                        )
+
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = isProjectFileExpanded,
+                            enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
+                            exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut()
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Button(
+                                    onClick = { viewModel.saveProject() },
+                                    enabled = saveState !is SaveState.Saving,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                    ),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("saveProjectButton"),
+                                    contentPadding = PaddingValues(0.dp)
+                                ) {
+                                    if (saveState is SaveState.Saving) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(14.dp),
+                                            strokeWidth = 2.dp,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                    } else {
+                                        Icon(
+                                            imageVector = Icons.Default.Save,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Save Project", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
