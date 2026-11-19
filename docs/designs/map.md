@@ -287,6 +287,12 @@ dengan apa".
 > yang tampil utuh selebar 180dp, bukan mengecil di kotak 120dp;
 > bila mati (Crop), tetap 120dp. Tinggi kartu = thumbnail + 68dp;
 > `fitToContent` Map memakai tinggi node sebenarnya.
+> (e) **Gambar selalu HD (2026-11-19, ADR-023)** — thumbnail Map
+> (maks 400px) burik dan node tidak bisa diklik untuk memicu HD
+> seperti di Board. Switch baru di Settings seksi MAP, "Gambar selalu
+> HD" (`alwaysFullRes`, default mati): bila nyala, `MapNodeCard`
+> memuat `fullPath` bukan `thumbPath`; Board juga selalu memuat
+> gambar asli (bukan hanya saat terpilih/zoom/GIF).
 
 ## 6. Yang sengaja tidak dirancang di sini
 

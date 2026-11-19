@@ -180,6 +180,7 @@ fun MapView(
     // Gambar node: utuh (Fit) atau terpotong (Crop) — lihat
     // viewModel.mapImageFull (opsi di Settings, default utuh).
     val imageFull = viewModel.mapImageFull
+    val alwaysFullRes = viewModel.alwaysFullRes
     val cardWidth = 180.dp
     // Tinggi kartu TIDAK lagi satu konstanta (R3): thumbnail gambar ikut
     // rasio media (mapThumbHeightDp) dan kartu todo ikut jumlah baris
@@ -649,6 +650,7 @@ fun MapView(
                         item = item,
                         name = "Image #${index + 1}",
                         imageFull = imageFull,
+                        alwaysFullRes = alwaysFullRes,
                         onNoteClick = { clicked ->
                             noteDialogItem = clicked
                             noteDraft = clicked.note
@@ -1151,6 +1153,7 @@ fun MapNodeCard(
     item: CanvasItem,
     name: String,
     imageFull: Boolean,
+    alwaysFullRes: Boolean,
     onNoteClick: (CanvasItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1190,7 +1193,11 @@ fun MapNodeCard(
                     ) {
                         AsyncImage(
                             model = ImageRequest.Builder(LocalContext.current)
-                                .data(item.thumbPath)
+                                // Selalu HD (2026-11-19): bila nyala, muat
+                                // gambar asli — node Map tidak bisa diklik
+                                // untuk memicu HD seperti di Board, jadi
+                                // tanpa ini node selalu thumbnail 400px.
+                                .data(if (alwaysFullRes) item.fullPath else item.thumbPath)
                                 .crossfade(true)
                                 .build(),
                             contentDescription = name,
@@ -1384,7 +1391,9 @@ fun TodoListContent(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(todoAddRowHeight),
-            contentAlignment = Alignment.CenterEnd
+            // Tombol + di tengah (2026-11-19 — dulu rata kanan, K11;
+            // user minta tengah, sejajar baris-baris di atasnya).
+            contentAlignment = Alignment.Center
         ) {
             Box(
                 modifier = Modifier

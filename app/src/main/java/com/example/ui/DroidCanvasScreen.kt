@@ -3214,6 +3214,55 @@ fun DroidCanvasScreen(
                                             onCheckedChange = { viewModel.mapImageFull = it }
                                         )
                                     }
+                                    // Gambar selalu HD (2026-11-19): muat
+                                    // gambar asli di Board + Map, bukan
+                                    // thumbnail — node Map tidak bisa diklik
+                                    // untuk memicu HD seperti di Board.
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.weight(1f),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(40.dp)
+                                                    .background(
+                                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                                        CircleShape
+                                                    ),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Image,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+                                            Column {
+                                                Text(
+                                                    text = "Gambar selalu HD",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                                Text(
+                                                    text = "Muat gambar resolusi penuh di Board dan Map, bukan thumbnail (mati = HD hanya saat gambar diklik / zoom)",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                                )
+                                            }
+                                        }
+                                        Switch(
+                                            checked = viewModel.alwaysFullRes,
+                                            onCheckedChange = { viewModel.alwaysFullRes = it }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -3688,7 +3737,7 @@ fun CanvasItemView(
             ) {
                 // Dynamically load full resolution only when zoomed in, selected, or for animated GIFs, otherwise load fast lightweight thumbnail
                 val isLargeScale = (localScale * canvasScale) > 1.2f
-                val shouldLoadFull = isSelected || isLargeScale || item.fullPath.endsWith(".gif", ignoreCase = true)
+                val shouldLoadFull = isSelected || isLargeScale || item.fullPath.endsWith(".gif", ignoreCase = true) || viewModel.alwaysFullRes
                 val valuesResults by viewModel.valuesResults.collectAsState()
                 val processedBitmap = valuesResults[item.id]?.processedBitmap
 

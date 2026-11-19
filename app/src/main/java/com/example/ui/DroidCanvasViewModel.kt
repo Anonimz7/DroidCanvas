@@ -963,6 +963,19 @@ class DroidCanvasViewModel(
             prefs.edit().putBoolean("map_image_full", value).apply()
         }
 
+    // Gambar selalu HD (2026-11-19): bila nyala, Board + Map selalu
+    // memuat gambar asli (fullPath), bukan thumbnail 400px — thumbnail
+    // burik bila diperbesar, dan node Map tidak bisa diklik untuk
+    // memicu HD. Default mati (perilaku sekarang: thumbnail cepat,
+    // HD hanya saat terpilih / zoom > 1.2x / GIF); opsi di Settings.
+    private var _alwaysFullRes by mutableStateOf(prefs.getBoolean("always_full_res", false))
+    var alwaysFullRes: Boolean
+        get() = _alwaysFullRes
+        set(value) {
+            _alwaysFullRes = value
+            prefs.edit().putBoolean("always_full_res", value).apply()
+        }
+
     private var _isDynamicColorEnabled by mutableStateOf(prefs.getBoolean("dynamic_color_enabled", true))
     var isDynamicColorEnabled: Boolean
         get() = _isDynamicColorEnabled
