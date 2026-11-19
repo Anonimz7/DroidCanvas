@@ -323,6 +323,155 @@ class ProjectOpenerTest {
     }
 
     // ------------------------------------------------------------------
+    // T7: buka berkas yang sama dua kali (Fase 5)
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `buka berkas yang sama dua kali - dua papan baru tanpa tabrakan id atau berkas`() {
+        val srcDir = File(workDir, "src").apply { mkdirs() }
+        val fullBytes = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte(), 1, 2, 3)
+        val thumbBytes = byteArrayOf(9, 8, 7, 6, 5)
+        val full = writeBytes(srcDir, "ref_full_1.jpg", fullBytes)
+        val thumb = writeBytes(srcDir, "ref_thumb_1.jpg", thumbBytes)
+        val board = Board(id = 7, name = "Papan Uji", createdAt = 1795054800000L)
+        val item = CanvasItem(
+            id = 11, boardId = 7,
+            fullPath = full.absolutePath, thumbPath = thumb.absolutePath,
+            posX = 120f, posY = 80f, width = 320f, height = 240f,
+            scale = 1f, rotation = 0f, zIndex = 0,
+            isPinned = false, flipHorizontal = false, flipVertical = false,
+            isGrayscale = false, isValuesEnabled = false,
+            simplicity = 0, stopsCount = 3, stopsJson = "",
+            mapX = 40f, mapY = 24f, note = "Catatan satu"
+        )
+        val stroke = SavedStroke(
+            id = "stroke-1", color = -16777216, width = 8f,
+            points = listOf(10f to 20f, 30f to 40f)
+        )
+        val archive = File(workDir, "papan-uji.droidcanvas")
+        ProjectSaver.save(
+            board = board, items = listOf(item), edges = emptyList(),
+            strokes = listOf(stroke),
+            boardCamera = CameraState(scale = 1.25f, translateX = 100f, translateY = -50f),
+            mapCamera = CameraState(scale = 0.85f, translateX = 120f, translateY = -40f),
+            appVersion = "0.2.0", outputFile = archive
+        )
+
+        val result1 = runBlocking { ProjectOpener.open(archive, filesDir, database) }
+        val result2 = runBlocking { ProjectOpener.open(archive, filesDir, database) }
+
+        // Dua papan baru, id berbeda.
+        assertNotEquals("boardId kedua harus berbeda", result1.boardId, result2.boardId)
+        assertEquals(2, boardCount())
+
+        val items1 = runBlocking { database.droidCanvasDao().getItemsForBoard(result1.boardId).first() }
+        val items2 = runBlocking { database.droidCanvasDao().getItemsForBoard(result2.boardId).first() }
+        assertEquals(1, items1.size)
+        assertEquals(1, items2.size)
+        val opened1 = items1.single()
+        val opened2 = items2.single()
+        assertNotEquals("id item harus berbeda", opened1.id, opened2.id)
+        assertNotEquals("berkas full tidak boleh sama", opened1.fullPath, opened2.fullPath)
+        assertNotEquals("berkas thumb tidak boleh sama", opened1.thumbPath, opened2.thumbPath)
+        assertArrayEquals(fullBytes, File(opened1.fullPath).readBytes())
+        assertArrayEquals(fullBytes, File(opened2.fullPath).readBytes())
+        assertArrayEquals(thumbBytes, File(opened1.thumbPath).readBytes())
+        assertArrayEquals(thumbBytes, File(opened2.thumbPath).readBytes())
+        assertItemFields(item, opened1)
+        assertItemFields(item, opened2)
+
+        // Goresan tertulis untuk kedua papan, isi sama.
+        val expectedStrokes = "stroke-1|-16777216|${8f}|${10f},${20f};${30f},${40f}"
+        for (boardId in listOf(result1.boardId, result2.boardId)) {
+            val strokesFile = File(filesDir, "drawing_strokes_$boardId.txt")
+            assertTrue(strokesFile.isFile)
+            assertEquals(expectedStrokes, strokesFile.readText())
+        }
+
+        // Isi filesDir: 2 x (2 gambar + 1 goresan), tidak lebih.
+        assertEquals(6, filesDir.list()!!.size)
+    }
+
+    // ------------------------------------------------------------------
+    // T8: papan besar 20 gambar (Fase 5) — kebenaran isi di skala besar;
+    // ANR + values study terhitung ulang tetap uji perangkat (Fase 7).
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `papan besar 20 gambar - semua item, edge dan goresan kembali utuh`() {
+        val srcDir = File(workDir, "src").apply { mkdirs() }
+        val expectedItems = ArrayList<CanvasItem>(20)
+        val expectedBytes = HashMap<String, ByteArray>(40)
+        for (i in 0 until 20) {
+            val fullBytes = ByteArray(16) { (i * 7 + it).toByte() }
+            val thumbBytes = ByteArray(8) { (i * 3 + it).toByte() }
+            val full = writeBytes(srcDir, "ref_full_$i.jpg", fullBytes)
+            val thumb = writeBytes(srcDir, "ref_thumb_$i.jpg", thumbBytes)
+            expectedBytes["full-$i"] = fullBytes
+            expectedBytes["thumb-$i"] = thumbBytes
+            expectedItems.add(
+                CanvasItem(
+                    id = 100 + i, boardId = 7,
+                    fullPath = full.absolutePath, thumbPath = thumb.absolutePath,
+                    posX = (i * 10).toFloat(), posY = 80f, width = 320f, height = 240f,
+                    scale = 1f, rotation = 0f, zIndex = i,
+                    isPinned = i % 2 == 0, flipHorizontal = false, flipVertical = false,
+                    isGrayscale = i % 3 == 0, isValuesEnabled = false,
+                    simplicity = i % 5, stopsCount = 3, stopsJson = "",
+                    mapX = (i * 5).toFloat(), mapY = 0f, note = if (i == 0) "Pertama" else ""
+                )
+            )
+        }
+        val edge = Edge(id = 5, boardId = 7, fromItemId = 100, toItemId = 101, type = "RELATED_TO")
+        val stroke1 = SavedStroke(
+            id = "stroke-1", color = -16777216, width = 8f,
+            points = listOf(10f to 20f, 30f to 40f)
+        )
+        val stroke2 = SavedStroke(
+            id = "stroke-2", color = -65536, width = 4f,
+            points = listOf(1f to 2f, 3f to 4f, 5f to 6f)
+        )
+        val board = Board(id = 7, name = "Papan Besar", createdAt = 1795054800000L)
+        val archive = File(workDir, "papan-besar.droidcanvas")
+        ProjectSaver.save(
+            board = board, items = expectedItems, edges = listOf(edge),
+            strokes = listOf(stroke1, stroke2),
+            boardCamera = CameraState(scale = 1f, translateX = 0f, translateY = 0f),
+            mapCamera = CameraState(scale = 1f, translateX = 0f, translateY = 0f),
+            appVersion = "0.2.0", outputFile = archive
+        )
+
+        val result = runBlocking { ProjectOpener.open(archive, filesDir, database) }
+
+        val items = runBlocking { database.droidCanvasDao().getItemsForBoard(result.boardId).first() }
+            .sortedBy { it.zIndex }
+        assertEquals(20, items.size)
+        for (i in 0 until 20) {
+            val opened = items[i]
+            assertItemFields(expectedItems[i], opened)
+            assertEquals(result.boardId, opened.boardId)
+            assertArrayEquals(expectedBytes["full-$i"], File(opened.fullPath).readBytes())
+            assertArrayEquals(expectedBytes["thumb-$i"], File(opened.thumbPath).readBytes())
+        }
+
+        val edges = runBlocking { database.edgeDao().getEdgesForBoard(result.boardId).first() }
+        assertEquals(1, edges.size)
+        assertEquals(items[0].id, edges.single().fromItemId)
+        assertEquals(items[1].id, edges.single().toItemId)
+        assertEquals("RELATED_TO", edges.single().type)
+
+        val strokesFile = File(filesDir, "drawing_strokes_${result.boardId}.txt")
+        assertTrue(strokesFile.isFile)
+        val expectedStrokes =
+            "stroke-1|-16777216|${8f}|${10f},${20f};${30f},${40f}\n" +
+                "stroke-2|-65536|${4f}|${1f},${2f};${3f},${4f};${5f},${6f}"
+        assertEquals(expectedStrokes, strokesFile.readText())
+
+        // Isi filesDir: 40 gambar + 1 goresan, tidak lebih.
+        assertEquals(41, filesDir.list()!!.size)
+    }
+
+    // ------------------------------------------------------------------
     // Pembantu
     // ------------------------------------------------------------------
 

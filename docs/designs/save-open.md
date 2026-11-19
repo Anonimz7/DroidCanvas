@@ -14,7 +14,7 @@
 | 2 | `ProjectSaver` (T3) | Kode selesai & di-push (`b1e932e`) — **terbukti 2026-11-19:** `ProjectSaverTest` 5/5 hijau di `:app:testDebugUnitTest` (butuh JDK 21 — lihat catatan build di §5.1) |
 | 3 | `ProjectOpener` + `file_paths` (T4+T5) | **Selesai 2026-11-19** — `ProjectOpener.kt` + `ProjectOpenerTest.kt` (7/7 hijau) + `cache-path` di `file_paths.xml`, sesuai panduan §5.1; kompilasi + test terbukti (`:app:testDebugUnitTest`, JDK 21) |
 | 4 | UI Save/Open (T6) | **Selesai (kode) 2026-11-19:** tombol Save + Open + progres + pesan hasil (ViewModel `openProject()` + launcher `ACTION_OPEN_DOCUMENT` + papan baru langsung aktif dengan kameranya); uji manual end-to-end di Fase 7 |
-| 5 | Uji (T7, T8, T10) | Siap dikerjakan (Fase 3 selesai 2026-11-19) |
+| 5 | Uji (T7, T8, T10) | **Selesai (kode test) 2026-11-19:** T7 + T8 ditambah ke `ProjectOpenerTest` (total 9 test); T10 sudah terbukti test Fase 3. Eksekusi test baru belum dibuktikan (butuh `:app:testDebugUnitTest`, JDK 21 — lihat catatan T3) |
 | 6 | Dokumen penutup (T9) | Siap dikerjakan (Fase 3 selesai 2026-11-19) |
 | 7 | Uji perangkat | Siap dikerjakan (Fase 3 selesai 2026-11-19) |
 
@@ -199,10 +199,10 @@ Skema formal + contoh lengkap: [`designs/manifest-schema.md`](manifest-schema.md
 | T4 | `ProjectOpener`: validasi → salin → transaksi Room | Unit test: versi tak dikenal ditolak; ZIP korup ditolak; gambar hilang ditolak; Open gagal = tidak ada papan baru — **Selesai 2026-11-19 (Fase 3):** `ProjectOpener.kt` + `ProjectOpenerTest.kt` (round-trip penuh + 5 penolakan + arsip pra-Map), 7/7 hijau di `:app:testDebugUnitTest` |
 | T5 | `file_paths.xml`: tambah `cache-path` | Berkas ZIP dari `cacheDir` bisa dibuka lewat `FileProvider` — **Selesai 2026-11-19 (Fase 3):** `<cache-path name="project_cache" path="." />`; `files-path` sengaja tidak ditambahkan (aturan keras 8) |
 | T6 | UI Save/Open di tab BOARD + progres + pesan hasil | Uji manual: Save → kirim ke perangkat lain → Open → isi papan sama — **SELESAI (kode, Fase 4, 2026-11-19):** tombol Save + Open (ViewModel `saveProject()` + `openProject()` + seksi PROJECT FILE di tab BOARD; Open lewat `ACTION_OPEN_DOCUMENT`, papan baru langsung aktif + kamera dimuat, pesan gagal menyebut sebabnya); berbagi Save jalan (cache-path T5). Uji manual end-to-end menunggu Fase 7 |
-| T7 | Buka berkas yang sama dua kali | Dua papan baru, tidak ada tabrakan id/berkas |
-| T8 | Uji manual papan besar (20+ gambar + goresan + values study) | Open selesai tanpa ANR; values study terhitung ulang |
+| T7 | Buka berkas yang sama dua kali | Dua papan baru, tidak ada tabrakan id/berkas — **Test ditambah 2026-11-19 (Fase 5):** `buka berkas yang sama dua kali` di `ProjectOpenerTest` (2 papan, id + nama berkas berbeda, isi identik, `filesDir` tepat 6 berkas). Eksekusi belum dibuktikan (butuh test run) |
+| T8 | Uji manual papan besar (20+ gambar + goresan + values study) | Open selesai tanpa ANR; values study terhitung ulang — **Test skala ditambah 2026-11-19 (Fase 5):** `papan besar 20 gambar` di `ProjectOpenerTest` (20 item + edge + 2 goresan kembali utuh, `filesDir` tepat 41 berkas). ANR + values study terhitung ulang tetap uji perangkat (Fase 7) |
 | T9 | Perbarui `roadmap.md` (langkah 1 → selesai), `data-model.md`, `decisions.md` | Dokumen konsisten dengan kode |
-| T10 | Data Map ikut format: `edges` + `mapX`/`mapY` + `note` + `mapCamera`; uji round-trip + buka arsip lama | Round-trip 1 papan ber-edge kembali identik (edge, note, posisi Map, kamera Map); arsip pra-Map terbuka bersih tanpa edge |
+| T10 | Data Map ikut format: `edges` + `mapX`/`mapY` + `note` + `mapCamera`; uji round-trip + buka arsip lama | Round-trip 1 papan ber-edge kembali identik (edge, note, posisi Map, kamera Map); arsip pra-Map terbuka bersih tanpa edge — **TERBUKTI 2026-11-19 (test Fase 3):** round-trip penuh + arsip pra-Map di `ProjectOpenerTest`, 7/7 hijau |
 
 ### 5.1 Panduan Fase 3 — `ProjectOpener` (T4) + `file_paths` (T5)
 
