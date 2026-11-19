@@ -25,7 +25,7 @@ Aturan pemeliharaan:
 | [ui.md](ui.md) | Struktur Compose: layar, sidebar, panel, dialog, tema |
 | [roadmap.md](roadmap.md) | Roadmap README **diaudit terhadap kode** + urutan kerja yang diusulkan |
 | [gaps.md](gaps.md) | Utang teknis, kode mati, dan risiko — bernomor (G1, G2, …) agar bisa dirujuk |
-| [designs/export-import.md](designs/export-import.md) | Rancangan fitur export/import project file (langkah 1) |
+| [designs/save-open.md](designs/save-open.md) | Rancangan fitur Save/Open project file (langkah 1) |
 | [designs/undo-gesture.md](designs/undo-gesture.md) | Rancangan undo/redo gesture (langkah 2) |
 | [designs/tablet.md](designs/tablet.md) | Rancangan tablet optimization (langkah 3) |
 | [designs/grayscale.md](designs/grayscale.md) | Rancangan grayscale toggle (langkah 4) |

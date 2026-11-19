@@ -23,7 +23,7 @@
 |---|---|
 | Tablet optimization | ⚠️ **Sebatas breakpoint** — satu-satunya adaptasi tablet adalah sidebar tetap vs drawer pada `maxWidth >= 720.dp`. Tanpa layout khusus tablet, tanpa dukungan stylus/pen khusus, tanpa multi-window. |
 | Crop tool | ✅ **Sudah jadi** — `CropImageDialog` lengkap (rasio, handle) + `cropCanvasItem` di ViewModel. Status "berjalan" di README sudah kedaluwarsa; pindahkan ke selesai. |
-| Export/Import project file | ❌ **Belum ada sama sekali** — tidak ada serializer, format, atau UI. Satu-satunya "export" adalah `exportSchema = false` di Room (itu arti berbeda). |
+| Save/Open project file | ❌ **Belum ada sama sekali** — tidak ada serializer, format, atau UI. Satu-satunya "export" adalah `exportSchema = false` di Room (itu arti berbeda). |
 
 ### Belum selesai (menurut README)
 
@@ -49,16 +49,16 @@ Setiap langkah merujuk ke dokumen yang relevan.
 > lihat langkah 4.
 
 - Perbarui README: pindahkan crop ke selesai; hapus centang grayscale (atau
-  implementasikan — lihat langkah 4); tandai export/import dan undo-gesture
+  implementasikan — lihat langkah 4); tandai Save/Open dan undo-gesture
   sebagai belum. Perbaiki link `meaayu/DroidCanvas` → `Anonimz7/DroidCanvas`
   (README masih menunjuk ke repo lama untuk APK dan clone).
 - Putuskan nasib kolom mati (`Board.canvasScale` dkk, `backgroundType`,
   `isGrayscale`) — lihat G3/G10. Keputusan ini memengaruhi format proyek
   (langkah 1), jadi harus diambil dulu.
 
-### 1. Export/import project file — fitur besar berikutnya
+### 1. Save/Open project file — fitur besar berikutnya
 
-Rancangan: [designs/export-import.md](designs/export-import.md)
+Rancangan: [designs/save-open.md](designs/save-open.md)
 
 Desain dulu, baru kode (satu dokumen desain per fitur, pola photocraft):
 
@@ -71,7 +71,7 @@ Desain dulu, baru kode (satu dokumen desain per fitur, pola photocraft):
 - **Serializer terpisah** dari Room dan UI (kelas murni, bisa diuji seperti
   `StrokeOptimizer`). Impor = validasi → tulis berkas → insert Room dalam satu
   transaksi; impor yang gagal tidak boleh meninggalkan papan setengah jadi.
-- **UI:** tombol export/import di tab BOARD; berbagi lewat `FileProvider`
+- **UI:** tombol Save/Open di tab BOARD; berbagi lewat `FileProvider`
   (perhatikan `file_paths.xml` hari ini hanya mengekspos `downloads/`).
 - Prasyarat: keputusan langkah 0 (kolom mana yang ikut diekspor).
 
@@ -112,7 +112,7 @@ Rancangan: [designs/grayscale.md](designs/grayscale.md)
 
 - Implementasi yang konsisten: tambah flag persisten per item (bukan kolom
   migrasi yang lalu dihapus), terapkan `ColorFilter.colorMatrix` saat render
-  di `CanvasItemView`, dan pastikan flag itu ikut dalam export/import (langkah 1).
+  di `CanvasItemView`, dan pastikan flag itu ikut dalam Save/Open (langkah 1).
 - Alternatif yang sah: nyatakan values study sebagai pengganti grayscale dan
   hapus item ini dari roadmap. Yang tidak boleh: klaim selesai tanpa kode.
 
@@ -128,8 +128,8 @@ Rancangan: [designs/map.md](designs/map.md)
 - `designs/map.md` (keputusan K1–K8 + O1–O5, disetujui user 2026-11-18;
   to-do T1–T9 selesai, T10 menunggu uji perangkat — fase 7).
 - Migrasi 9→10 sudah jalan (tabel `edges` + kolom `mapX`/`mapY`/`note`);
-  format export/import sudah mencakup data Map (lihat langkah 1, T10 di
-  `designs/export-import.md`).
+  format Save/Open sudah mencakup data Map (lihat langkah 1, T10 di
+  `designs/save-open.md`).
 
 ### Pekerjaan fondasi (jalan bersamaan, sebelum rilis publik)
 

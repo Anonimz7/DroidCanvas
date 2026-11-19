@@ -75,7 +75,7 @@ cd DroidCanvas
 
 **Ongoing:**
 - [ ] Tablet optimization
-- [ ] Export/Import project file
+- [ ] Save/Open project file
 
 **Planned:**
 - [ ] Map view — node graph over the Board (typed connections + notes) — built (phases 1–5), awaiting on-device test

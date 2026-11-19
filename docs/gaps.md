@@ -185,5 +185,5 @@
   gambar di `filesDir` internal tidak bisa dibagikan lewat provider ini.
 - **Dampak:** Fitur berbagi/ekspor gambar nanti harus menambah path — atau
   menyalin dulu ke lokasi yang diekspos.
-- **Arah:** Perbaiki saat mengerjakan export/import (roadmap langkah 1), bukan
+- **Arah:** Perbaiki saat mengerjakan Save/Open (roadmap langkah 1), bukan
   sekarang.

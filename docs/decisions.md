@@ -33,7 +33,7 @@ keputusannya dipertanyakan oleh temuan pemetaan — lihat [gaps.md](gaps.md).
 - **Konteks:** README: "no account required". Aplikasi referensi untuk seniman.
 - **Keputusan:** Room + `filesDir` + file teks + SharedPreferences. Tidak ada
   sinkronisasi cloud, tidak ada server.
-- **Konsekuensi:** Export/import file proyek menjadi satu-satunya jalan keluar-
+- **Konsekuensi:** Save/Open file proyek menjadi satu-satunya jalan keluar-
   masuk data (lihat [roadmap.md](roadmap.md)). Backup otomatis Android aktif
   (`allowBackup=true`) tapi aturan backup masih template kosong — file gambar di
   `filesDir` ikut tercadangkan apa adanya.

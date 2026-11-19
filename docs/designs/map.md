@@ -92,7 +92,7 @@ dengan apa".
 | T6 | Render edge: kurva bezier antar port, warna per jenis, label jenis di tengah garis; tanpa panah (K4, K5) | Selesai (fase 3) |
 | T7 | Gesture Map (K8, fase 3): drag node — simpan `mapX`/`mapY` saat drag selesai; pan/zoom Map sendiri — geser ruang kosong = pan, pinch = zoom; buat edge: tarik dari port → picker jenis → simpan; hapus edge (tap garis / menu) | Selesai (fase 3) |
 | T8 | UI notes: tap + → input teks → balon di bawah kartu + ikon komentar (K6) | Selesai (fase 4) |
-| T9 | Hapus gambar → edge + note + posisi Map ikut hapus (O3); export/import: edge, notes, dan posisi Map ikut format proyek — lihat `designs/export-import.md` (format harus mencakup kolom baru ini) | Selesai (fase 5) |
+| T9 | Hapus gambar → edge + note + posisi Map ikut hapus (O3); Save/Open: edge, notes, dan posisi Map ikut format proyek — lihat `designs/save-open.md` (format harus mencakup kolom baru ini) | Selesai (fase 5) |
 | T10 | Uji manual di perangkat (tidak ada tes UI otomatis hari ini): buat edge 8 jenis, geser node (garis ikut), tambah note, hapus gambar (edge ikut hilang) | Menunggu uji perangkat (fase 7) |
 
 > **Catatan implementasi fase 1 (2026-11-18):** O3 diwujudkan dengan FK
@@ -215,8 +215,8 @@ dengan apa".
 > sempat terhapus TIDAK mengembalikan edge-nya (snapshot hanya berisi
 > item). Batas verifikasi: statis saja (tanpa Android SDK di VM) —
 > penutup runtime-nya adalah T10 (hapus gambar di perangkat → edge ikut
-> hilang). Separuh kedua T9 — format export/import mencakup data Map —
-> dicatat di `designs/export-import.md` §4.1–§4.2.
+> hilang). Separuh kedua T9 — format Save/Open mencakup data Map —
+> dicatat di `designs/save-open.md` §4.1–§4.2.
 >
 > **Catatan implementasi fase 6 (2026-11-18):** verifikasi statis
 > menyeluruh lintas fase atas seluruh Map (diff `f3bfbdc..HEAD`, 8 file)

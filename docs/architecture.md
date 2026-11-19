@@ -122,7 +122,7 @@ supaya fitur baru tidak mengulang pola yang sudah terbukti rapuh.
    SharedPreferences langsung; semua lewat ViewModel/repository. Hari ini
    `CropImageDialog` dan Screen masih mengakses `File`/`LocalContext` di beberapa
    tempat — rapikan saat menyentuh area itu.
-5. **Format proyek (export/import) dirancang sebagai lapisan sendiri**
+5. **Format proyek (Save/Open) dirancang sebagai lapisan sendiri**
    (lihat [roadmap.md](roadmap.md)): serializer terpisah dari Room dan dari UI,
    dengan nomor versi format, supaya file proyek lama tetap bisa dibuka.
 6. **Nama paket diganti** dari `com.example` ke `com.droidcanvas` sebelum rilis

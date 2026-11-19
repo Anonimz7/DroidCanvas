@@ -52,7 +52,7 @@ sekali (lihat ADR-010).
   (`ALTER TABLE canvas_items ADD COLUMN isGrayscale INTEGER NOT NULL
   DEFAULT 0`). Satu kolom, satu migrasi — jangan mengulang pola
   tambah-lalu-hapus migrasi 5→8.
-- Flag ini ikut manifest export/import (lihat `export-import.md` —
+- Flag ini ikut manifest Save/Open (lihat `save-open.md` —
   skema sudah mencantumkannya).
 
 ### 4.2 Render
@@ -94,7 +94,7 @@ else null
 | T4 | Render `ColorFilter` di `AsyncImage` (`:3228`) | Gambar abu-abu saat toggle nyala; flip tetap berfungsi bersamaan |
 | T5 | Toggle di tab LAYERS + `toggleGrayscale()` + undo | Toggle bisa di-undo; state bertahan setelah restart (persisten) |
 | T6 | Uji interaksi dengan values study | Values aktif → gambar posterized (bukan abu-abu polos); values mati → grayscale berlaku |
-| T7 | Uji manual: nyala/mati, flip, restart, export/import | Flag ikut dalam arsip proyek dan kembali utuh |
+| T7 | Uji manual: nyala/mati, flip, restart, Save/Open | Flag ikut dalam arsip proyek dan kembali utuh |
 | T8 | Perbarui `roadmap.md` (langkah 4 → selesai), `data-model.md`, `decisions.md` (ADR-010) | Dokumen konsisten dengan kode |
 
 ## 6. Di luar lingkup

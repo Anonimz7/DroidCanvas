@@ -140,7 +140,7 @@ disesuaikan offset crop yang dirotasi. Berkas asli dipertahankan untuk undo
 - **Undo/redo lewat gesture** (misalnya swipe): tidak ada — undo/redo hanya lewat
   tombol (lihat [roadmap.md](roadmap.md)).
 - **Grayscale toggle**: tidak ada (lihat ADR-010).
-- **Export/import proyek**: tidak ada.
+- **Save/Open proyek**: tidak ada.
 - **Multi-touch pada item** saat resize bersamaan: pointer item menolak input bila
   `globalIsMultiTouch` atau sedang resize.
 - **Batas kanvas**: tidak ada — kanvas benar-benar tak terbatas; `fitToContent`
