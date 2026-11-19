@@ -643,6 +643,15 @@ class DroidCanvasViewModel(
         prefs.getString("save_file_$boardId", null)
 
     /**
+     * Uri berkas target Save papan ini, bila pernah disimpan/dibuka
+     * (diingat per papan di prefs; kunci `save_uri_<boardId>`). Save
+     * memakai Uri ini langsung tanpa lookup (pendekatan 2026-11-19:
+     * lookup MediaStore gagal di perangkat user).
+     */
+    private fun savedFileUri(boardId: Int): Uri? =
+        prefs.getString("save_uri_$boardId", null)?.let { Uri.parse(it) }
+
+    /**
      * Nama berkas target papan yang sedang aktif (null bila belum pernah
      * disimpan/dibuka). Dibaca saat compose oleh indikator PROJECT FILE —
      * segar setiap recompose (saveState/openState/papan aktif berubah).
@@ -756,10 +765,18 @@ class DroidCanvasViewModel(
                     appVersion = BuildConfig.VERSION_NAME,
                     outputFile = tempFile
                 )
-                ProjectFileStore.writeProjectFile(
-                    appContext.contentResolver, displayName, tempFile
+                // Uri tersimpan hanya berlaku bila namanya sama dengan
+                // target yang diingat — Save As ke nama lain harus
+                // lookup/insert atas nama baru, bukan menimpa berkas lama.
+                val existingUri =
+                    if (displayName == savedFileName(boardId)) savedFileUri(boardId) else null
+                val savedUri = ProjectFileStore.writeProjectFile(
+                    appContext.contentResolver, displayName, tempFile, existingUri
                 )
-                prefs.edit().putString("save_file_$boardId", displayName).apply()
+                prefs.edit()
+                    .putString("save_file_$boardId", displayName)
+                    .putString("save_uri_$boardId", savedUri.toString())
+                    .apply()
                 withContext(Dispatchers.Main) {
                     saveState = SaveState.Saved(displayName, board.name, shareAfter)
                 }
@@ -828,6 +845,7 @@ class DroidCanvasViewModel(
                         .putFloat("map_trans_x_${result.boardId}", result.mapCamera.translateX)
                         .putFloat("map_trans_y_${result.boardId}", result.mapCamera.translateY)
                         .putString("save_file_${result.boardId}", targetName)
+                        .putString("save_uri_${result.boardId}", uri.toString())
                         .apply()
                     selectBoard(result.boardId)
                     openState = OpenState.Opened(boardName)

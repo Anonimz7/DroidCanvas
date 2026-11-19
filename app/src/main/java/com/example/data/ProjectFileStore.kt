@@ -9,6 +9,7 @@ import android.os.Environment
 import android.provider.MediaStore
 import java.io.File
 import java.io.FileInputStream
+import java.io.FileNotFoundException
 import java.io.FileOutputStream
 
 /**
@@ -25,6 +26,11 @@ import java.io.FileOutputStream
  *   tulis gagal dengan pesan yang jelas).
  * - Nama berkas yang sama DITIMPA (Save menimpa target yang sama, seperti
  *   Save di desktop; Save As ke nama yang sudah ada juga menimpa).
+ *   Caranya (2026-11-19): Uri berkas disimpan per papan dan dipakai
+ *   langsung saat Save — tanpa lookup — karena lookup MediaStore
+ *   (DISPLAY_NAME + RELATIVE_PATH) gagal di perangkat user, dua ejaan
+ *   garis miring sudah dicoba. Lookup hanya jadi cadangan (berdasarkan
+ *   nama saja, folder dicocokkan di kode).
  * - Kelas murni tanpa Room/ViewModel/Compose — hanya `ContentResolver` +
  *   `java.io`, seperti `ProjectSaver`.
  */
@@ -67,11 +73,20 @@ object ProjectFileStore {
      * Tulis [sourceFile] sebagai `Download/droidcanvas/<displayName>`.
      * Mengembalikan Uri konten berkas. Gagal → exception dengan pesan
      * yang menyebut sebabnya (K6).
+     *
+     * [existingUri] = Uri berkas target yang sudah disimpan sebelumnya
+     * (bila ada): timpa langsung tanpa lookup. Uri basi (berkas dihapus
+     * dari luar) jatuh ke lookup/insert di bawah.
      */
     @Throws(Exception::class)
-    fun writeProjectFile(resolver: ContentResolver, displayName: String, sourceFile: File): Uri {
+    fun writeProjectFile(
+        resolver: ContentResolver,
+        displayName: String,
+        sourceFile: File,
+        existingUri: Uri? = null
+    ): Uri {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            writeViaMediaStore(resolver, displayName, sourceFile)
+            writeViaMediaStore(resolver, displayName, sourceFile, existingUri)
         } else {
             writeViaFileApi(displayName, sourceFile)
         }
@@ -91,20 +106,28 @@ object ProjectFileStore {
     }
 
     private fun findMediaStoreUri(resolver: ContentResolver, displayName: String): Uri? {
-        val projection = arrayOf(MediaStore.Downloads._ID)
-        val selection =
-            "${MediaStore.Downloads.DISPLAY_NAME} = ? AND ${MediaStore.Downloads.RELATIVE_PATH} = ?"
-        // MediaStore menyimpan RELATIVE_PATH dengan garis miring di ujung
-        // ("Download/droidcanvas/") — tanpa garis miring query tidak pernah
-        // cocok, Save selalu menyisipkan berkas baru (MediaStore lalu
-        // menambahkan " (1)" pada nama duplikat). Ditemukan 2026-11-19.
-        val args = arrayOf(displayName, "$RELATIVE_PATH/")
+        val projection = arrayOf(
+            MediaStore.Downloads._ID,
+            MediaStore.Downloads.RELATIVE_PATH
+        )
+        // HANYA nama yang dicocokkan di SQL: bentuk RELATIVE_PATH yang
+        // tersimpan tidak konsisten antar perangkat (dengan/tanpa garis
+        // miring di ujung) dan dua ejaan sudah gagal di perangkat user
+        // (2026-11-19) — folder dicocokkan di kode setelah dinormalisasi.
+        val selection = "${MediaStore.Downloads.DISPLAY_NAME} = ?"
+        val args = arrayOf(displayName)
         resolver.query(
             MediaStore.Downloads.EXTERNAL_CONTENT_URI, projection, selection, args, null
         )?.use { cursor ->
-            if (cursor.moveToFirst()) {
-                val id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Downloads._ID))
-                return ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, id)
+            val idCol = cursor.getColumnIndexOrThrow(MediaStore.Downloads._ID)
+            val pathCol = cursor.getColumnIndexOrThrow(MediaStore.Downloads.RELATIVE_PATH)
+            while (cursor.moveToNext()) {
+                if (cursor.getString(pathCol)?.trimEnd('/') == RELATIVE_PATH) {
+                    val id = cursor.getLong(idCol)
+                    return ContentUris.withAppendedId(
+                        MediaStore.Downloads.EXTERNAL_CONTENT_URI, id
+                    )
+                }
             }
         }
         return null
@@ -113,9 +136,23 @@ object ProjectFileStore {
     private fun writeViaMediaStore(
         resolver: ContentResolver,
         displayName: String,
-        sourceFile: File
+        sourceFile: File,
+        existingUri: Uri?
     ): Uri {
-        // Entri lama dengan nama sama → timpa isinya (Save menimpa target).
+        // 1. Uri tersimpan → timpa isinya langsung, tanpa lookup.
+        if (existingUri != null) {
+            try {
+                resolver.openOutputStream(existingUri, "w")?.use { out ->
+                    FileInputStream(sourceFile).use { input -> input.copyTo(out) }
+                } ?: throw IllegalStateException("Tidak bisa menulis berkas $displayName")
+                return existingUri
+            } catch (e: FileNotFoundException) {
+                // Uri basi (berkas dihapus dari luar) → lanjut ke
+                // lookup/insert di bawah; hanya ini yang ditangkap —
+                // gagal tulis lain (mis. disk penuh) tetap gagal jujur.
+            }
+        }
+        // 2. Cadangan: cari berdasarkan nama, timpa bila ketemu.
         val existing = findMediaStoreUri(resolver, displayName)
         if (existing != null) {
             resolver.openOutputStream(existing, "w")?.use { out ->
@@ -123,6 +160,7 @@ object ProjectFileStore {
             } ?: throw IllegalStateException("Tidak bisa menulis berkas $displayName")
             return existing
         }
+        // 3. Belum ada → sisipkan baris baru.
         val values = ContentValues().apply {
             put(MediaStore.Downloads.DISPLAY_NAME, displayName)
             put(MediaStore.Downloads.MIME_TYPE, MIME_TYPE)

@@ -191,14 +191,23 @@ Skema formal + contoh lengkap: [`designs/manifest-schema.md`](manifest-schema.md
   via File API ke folder publik yang sama. Berkas kelihatan di file
   manager dan TIDAK hilang saat aplikasi di-uninstall.
 - **Nama berkas sama = timpa** (Save menimpa target yang sama; Save As
-  ke nama yang sudah ada juga menimpa). Nama di-slug: huruf kecil,
-  spasi → `_` ("Number 1" → `number_1.dc`); akhiran `.dc` ditambahkan
-  bila belum ada; `.dc.zip` (bekas penempelan MediaStore dulu) dibuang
-  saat Open. MIME MediaStore `application/octet-stream` (bukan
-  `application/zip`) agar `.zip` tidak ditempelkan ke ekstensi `.dc`.
-- **Target diingat per papan** di prefs (`save_file_<boardId>`); Open
-  dari berkas mengisi target itu dari nama berkas asal (Save menulis
-  kembali ke berkas yang dibuka).
+  ke nama yang sudah ada juga menimpa). Mekanismenya (ADR-025): Uri
+  berkas target disimpan per papan dan dipakai langsung saat Save
+  (`openOutputStream(uri, "w")`, tanpa lookup); cadangannya lookup
+  berdasarkan nama saja (folder dicocokkan di kode, bukan di SQL).
+  Riwayat: lookup DISPLAY_NAME + RELATIVE_PATH gagal di perangkat user
+  — dua ejaan garis miring sudah dicoba 2026-11-19, dan insert menulis
+  RELATIVE_PATH tanpa garis miring sementara cari memakai garis miring.
+  Nama di-slug: huruf kecil, spasi → `_` ("Number 1" → `number_1.dc`);
+  akhiran `.dc` ditambahkan bila belum ada; `.dc.zip` (bekas penempelan
+  MediaStore dulu) dibuang saat Open. MIME MediaStore
+  `application/octet-stream` (bukan `application/zip`) agar `.zip`
+  tidak ditempelkan ke ekstensi `.dc`.
+- **Target diingat per papan** di prefs (`save_file_<boardId>` +
+  `save_uri_<boardId>`); Open dari berkas mengisi keduanya dari berkas
+  asal (Save menulis kembali ke berkas yang dibuka). Uri tersimpan
+  hanya dipakai bila namanya sama dengan target — Save As ke nama lain
+  tidak memakai Uri lama.
 - **Berbagi hanya lewat tombol Share**: simpan dulu (segar), lalu salin
   berkas tersimpan ke `cacheDir` (`share-<nama>`) dan bagikan via
   `FileProvider` + `ACTION_SEND`, MIME `application/zip` — satu jalur
