@@ -1,10 +1,22 @@
 # Rancangan: Save/Open Project File
 
-> **Status:** Rancangan — keputusan K1–K6 disetujui 2026-11-19 (sesuai rekomendasi); Fase 1 (T2) + Fase 2 (T3) selesai 2026-11-19, belum di-push ·
+> **Status:** Rancangan — keputusan K1–K6 disetujui 2026-11-19 (sesuai rekomendasi) ·
 > Dinamai ulang Export/Import → Save/Open 2026-11-19 (keputusan user;
 > analogi Photoshop: Save/Open = berkas kerja, Export = hasil JPG/PNG) ·
-> **Terakhir ditinjau:** 2026-11-19 · **HEAD:** `7f01519` ·
+> **Terakhir ditinjau:** 2026-11-19 · **HEAD:** `132058e` ·
 > **Merujuk:** [roadmap.md](../roadmap.md) langkah 1 · [gaps.md](../gaps.md) G5, G20 · [data-model.md](../data-model.md)
+
+## Fase pengerjaan
+
+| Fase | Kerja | Status (2026-11-19) |
+|---|---|---|
+| 1 | Skema manifest (T2) | Selesai & di-push (`f8d487c`) |
+| 2 | `ProjectSaver` (T3) | Kode selesai & di-push (`b1e932e`) — **BELUM TERBUKTI:** test belum pernah dieksekusi; kompilasi belum pernah dibuktikan build |
+| 3 | `ProjectOpener` + `file_paths` (T4+T5) | **BERHENTI untuk asisten** — dikerjakan user terpisah |
+| 4 | UI Save/Open (T6) | **SEBAGIAN** & di-push (`132058e`): Save selesai (tombol + progres + pesan + berbagi); Open menunggu Fase 3; berbagi menunggu T5. Kode belum pernah dibuktikan kompilasi |
+| 5 | Uji (T7, T8, T10) | Menunggu Fase 3 |
+| 6 | Dokumen penutup (T9) | Menunggu Fase 3 |
+| 7 | Uji perangkat | Menunggu Fase 3 |
 
 ## 1. Tujuan
 

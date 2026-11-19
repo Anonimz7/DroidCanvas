@@ -58,7 +58,7 @@ Setiap langkah merujuk ke dokumen yang relevan.
 
 ### 1. Save/Open project file — fitur besar berikutnya
 
-> **Keputusan K1–K6 disetujui 2026-11-19 (sesuai rekomendasi)** — lihat `designs/save-open.md` §3 (ADR-015). Belum dibangun.
+> **Keputusan K1–K6 disetujui 2026-11-19 (sesuai rekomendasi)** — lihat `designs/save-open.md` §3 (ADR-015). Fase 1 + Fase 2 selesai & di-push; Fase 4 sebagian (Save selesai & di-push `132058e`); Fase 3 dikerjakan user terpisah — lihat `designs/save-open.md` ("Fase pengerjaan").
 
 Rancangan: [designs/save-open.md](designs/save-open.md)
 
