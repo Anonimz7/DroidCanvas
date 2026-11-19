@@ -181,6 +181,7 @@ fun MapView(
     // viewModel.mapImageFull (opsi di Settings, default utuh).
     val imageFull = viewModel.mapImageFull
     val alwaysFullRes = viewModel.alwaysFullRes
+    val mapHdItemId = viewModel.mapHdItemId
     val cardWidth = 180.dp
     // Tinggi kartu TIDAK lagi satu konstanta (R3): thumbnail gambar ikut
     // rasio media (mapThumbHeightDp) dan kartu todo ikut jumlah baris
@@ -536,7 +537,14 @@ fun MapView(
                                         if (targetTodo != null) viewModel.commitTodoMapPosition(targetTodo, newX, newY)
                                     }
                                 }
-                                // Tap on a node (no movement): no-op.
+                                // Tap pada node (tanpa geser): single HD
+                                // seperti Board — node gambar yang diketuk
+                                // jadi HD; ketuk lagi = kembali thumbnail;
+                                // ketuk node lain = HD pindah. Todo tidak
+                                // kena (tidak ada gambarnya).
+                                else if (!pastSlop && targetEndpoint?.kind == EdgeEndpointKind.ITEM) {
+                                    viewModel.toggleMapHd(targetEndpoint.id)
+                                }
                             }
                             MapDragMode.EDGE_CREATE -> {
                                 tempEdgeStart = null
@@ -651,6 +659,7 @@ fun MapView(
                         name = "Image #${index + 1}",
                         imageFull = imageFull,
                         alwaysFullRes = alwaysFullRes,
+                        isHd = mapHdItemId == item.id,
                         onNoteClick = { clicked ->
                             noteDialogItem = clicked
                             noteDraft = clicked.note
@@ -1154,6 +1163,7 @@ fun MapNodeCard(
     name: String,
     imageFull: Boolean,
     alwaysFullRes: Boolean,
+    isHd: Boolean,
     onNoteClick: (CanvasItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1193,11 +1203,12 @@ fun MapNodeCard(
                     ) {
                         AsyncImage(
                             model = ImageRequest.Builder(LocalContext.current)
-                                // Selalu HD (2026-11-19): bila nyala, muat
-                                // gambar asli — node Map tidak bisa diklik
-                                // untuk memicu HD seperti di Board, jadi
-                                // tanpa ini node selalu thumbnail 400px.
-                                .data(if (alwaysFullRes) item.fullPath else item.thumbPath)
+                                // HD node Map (2026-11-19): gambar asli bila
+                                // "Gambar selalu HD" nyala ATAU node ini
+                                // yang terakhir diketuk (single HD seperti
+                                // Board — ketuk node = HD, ketuk lagi =
+                                // kembali thumbnail).
+                                .data(if (alwaysFullRes || isHd) item.fullPath else item.thumbPath)
                                 .crossfade(true)
                                 .build(),
                             contentDescription = name,

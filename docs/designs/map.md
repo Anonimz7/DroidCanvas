@@ -293,6 +293,13 @@ dengan apa".
 > HD" (`alwaysFullRes`, default mati): bila nyala, `MapNodeCard`
 > memuat `fullPath` bukan `thumbPath`; Board juga selalu memuat
 > gambar asli (bukan hanya saat terpilih/zoom/GIF).
+> (f) **Ketuk node = single HD (2026-11-19, ADR-024)** — slot ketuk
+> node Map memang kosong (no-op), jadi dipakai untuk HD: ketuk node
+> gambar → node itu memuat `fullPath` (satu-satunya yang HD, seperti
+> Board); ketuk lagi → kembali thumbnail; ketuk node lain → HD
+> pindah. State `mapHdItemId` di ViewModel (sesi saja, tidak ke
+> prefs); dihapus saat gambarnya dihapus. Seret, port, dan kontrol
+> note tidak kena (sudah dipisah lewat `pastSlop` + urutan hit-test).
 
 ## 6. Yang sengaja tidak dirancang di sini
 

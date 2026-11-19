@@ -976,6 +976,17 @@ class DroidCanvasViewModel(
             prefs.edit().putBoolean("always_full_res", value).apply()
         }
 
+    // Node Map yang diketuk terakhir: satu-satunya node yang dimuat HD
+    // (single HD seperti Board — hanya yang terpilih yang full-res).
+    // Bukan preferensi: hanya state sesi, tidak disimpan ke prefs;
+    // hilang saat aplikasi ditutup.
+    var mapHdItemId by mutableStateOf<Int?>(null)
+        private set
+
+    fun toggleMapHd(itemId: Int) {
+        mapHdItemId = if (mapHdItemId == itemId) null else itemId
+    }
+
     private var _isDynamicColorEnabled by mutableStateOf(prefs.getBoolean("dynamic_color_enabled", true))
     var isDynamicColorEnabled: Boolean
         get() = _isDynamicColorEnabled
@@ -1957,6 +1968,9 @@ class DroidCanvasViewModel(
             // ImageStorageHelper.deleteImageFiles(item.fullPath, item.thumbPath)
             if (_selectedItemId.value == item.id) {
                 _selectedItemId.value = null
+            }
+            if (mapHdItemId == item.id) {
+                mapHdItemId = null
             }
         }
     }
