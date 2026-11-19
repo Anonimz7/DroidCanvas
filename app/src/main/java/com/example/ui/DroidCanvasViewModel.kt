@@ -19,6 +19,7 @@ import com.example.data.ConnectionType
 import com.example.data.DroidCanvasDatabase
 import com.example.data.DroidCanvasRepository
 import com.example.data.Edge
+import com.example.data.EdgeEndpointKind
 import com.example.data.ImageStorageHelper
 import com.example.data.ProjectOpener
 import com.example.data.ProjectFileStore
@@ -190,8 +191,10 @@ class DroidCanvasViewModel(
         )
 
     // Todo berbasis kanvas untuk papan aktif (langkah 6, T2) — pola yang
-    // sama persis seperti `edges` di atas.
-    val todos: StateFlow<List<Todo>> = _currentBoardId
+    // sama persis seperti `edges` di atas. T5: seperti `canvasItems`,
+    // dipisah jadi aliran DB + override posisi Map di memori (drag node
+    // todo di Map), supaya garis yang menempel ikut bergerak live.
+    private val dbTodos: StateFlow<List<Todo>> = _currentBoardId
         .flatMapLatest { boardId ->
             if (boardId != null) {
                 repository.getTodosForBoard(boardId)
@@ -204,6 +207,16 @@ class DroidCanvasViewModel(
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
+
+    private val _todoOverrides = MutableStateFlow<Map<Int, Todo>>(emptyMap())
+
+    val todos: StateFlow<List<Todo>> = combine(dbTodos, _todoOverrides) { dbItems, overrides ->
+        dbItems.map { todo -> overrides[todo.id] ?: todo }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
 
     private val _valuesResults = MutableStateFlow<Map<Int, ValuesResult>>(emptyMap())
     val valuesResults: StateFlow<Map<Int, ValuesResult>> = _valuesResults.asStateFlow()
@@ -1639,12 +1652,19 @@ class DroidCanvasViewModel(
 
     // Map view edge CRUD (fase 1: thin pass-throughs; edge creation rules
     // and gestures are fase 3). No undo snapshot here — edges are not part
-    // of the item snapshot stacks yet.
-    fun insertEdge(fromItemId: Int, toItemId: Int, type: ConnectionType) {
+    // of the item snapshot stacks yet. T5: ujung boleh todo (P5 opsi (a)) —
+    // kind default ITEM supaya panggilan gambar→gambar tidak berubah.
+    fun insertEdge(
+        fromItemId: Int,
+        toItemId: Int,
+        type: ConnectionType,
+        fromKind: String = EdgeEndpointKind.ITEM,
+        toKind: String = EdgeEndpointKind.ITEM
+    ) {
         val boardId = _currentBoardId.value ?: return
         viewModelScope.launch(Dispatchers.IO) {
             repository.insertEdge(
-                Edge(boardId = boardId, fromItemId = fromItemId, toItemId = toItemId, type = type.name)
+                Edge(boardId = boardId, fromItemId = fromItemId, toItemId = toItemId, type = type.name, fromKind = fromKind, toKind = toKind)
             )
         }
     }
@@ -1688,6 +1708,22 @@ class DroidCanvasViewModel(
     fun updateTodoPosition(todo: Todo, posX: Float, posY: Float) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.updateTodo(todo.copy(posX = posX, posY = posY))
+        }
+    }
+
+    // Posisi node todo di Map (T5): cermin updateMapPositionInMemory /
+    // commitMapPosition untuk gambar. Drag node todo tidak mengambil
+    // snapshot undo (todo belum ikut snapshot — T7, P4).
+    fun updateTodoMapPositionInMemory(todo: Todo, mapX: Float, mapY: Float) {
+        val updated = todo.copy(mapX = mapX, mapY = mapY)
+        _todoOverrides.update { current -> current + (todo.id to updated) }
+    }
+
+    fun commitTodoMapPosition(todo: Todo, mapX: Float, mapY: Float) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val updated = todo.copy(mapX = mapX, mapY = mapY)
+            repository.updateTodo(updated)
+            _todoOverrides.update { current -> current - todo.id }
         }
     }
 

@@ -13,6 +13,7 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.withTransaction
 import androidx.room.Update
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
@@ -67,6 +68,17 @@ data class CanvasItem(
 )
 
 // Map view: a typed connection between two items of the same board.
+// Jenis ujung edge (T5, P5 opsi (a)): satu tabel `edges` untuk gambar dan
+// todo; kolom ini yang membedakan ujung ITEM (id → canvas_items) dari ujung
+// TODO (id → todos). FK ke canvas_items DIBUANG di migrasi 11→12 — FK
+// SQLite tidak bisa bersyarat, jadi id todo di kolom ber-FK akan ditolak
+// database; hapus berantai pindah ke repository (transaksi, lihat
+// DroidCanvasRepository.deleteCanvasItem/deleteTodo).
+object EdgeEndpointKind {
+    const val ITEM = "ITEM"
+    const val TODO = "TODO"
+}
+
 // The edge stores only from/to/type (K5); the curve geometry is derived
 // from the node positions at render time, never stored.
 @Entity(
@@ -76,18 +88,6 @@ data class CanvasItem(
             entity = Board::class,
             parentColumns = ["id"],
             childColumns = ["boardId"],
-            onDelete = ForeignKey.CASCADE
-        ),
-        ForeignKey(
-            entity = CanvasItem::class,
-            parentColumns = ["id"],
-            childColumns = ["fromItemId"],
-            onDelete = ForeignKey.CASCADE
-        ),
-        ForeignKey(
-            entity = CanvasItem::class,
-            parentColumns = ["id"],
-            childColumns = ["toItemId"],
             onDelete = ForeignKey.CASCADE
         )
     ],
@@ -102,7 +102,9 @@ data class Edge(
     val boardId: Int,
     val fromItemId: Int,
     val toItemId: Int,
-    val type: String // ConnectionType.name — see ConnectionType.kt
+    val type: String, // ConnectionType.name — see ConnectionType.kt
+    val fromKind: String = EdgeEndpointKind.ITEM,
+    val toKind: String = EdgeEndpointKind.ITEM
 )
 
 // Todo berbasis kanvas (langkah 6, T1): satu jenis objek lagi di kanvas,
@@ -177,8 +179,16 @@ interface EdgeDao {
     @Delete
     suspend fun deleteEdge(edge: Edge)
 
-    @Query("DELETE FROM edges WHERE fromItemId = :itemId OR toItemId = :itemId")
+    // Hapus berantai eksplisit (T5): FK ke canvas_items/todos sudah tidak
+    // ada (opsi (a)), jadi penghapusan WAJIB dibatasi jenis ujungnya — id
+    // gambar dan id todo punya urutan autoGenerate sendiri dan bisa sama
+    // angkanya; tanpa pembatasan kind, hapus gambar bisa ikut menghapus
+    // garis todo (dan sebaliknya).
+    @Query("DELETE FROM edges WHERE (fromKind = 'ITEM' AND fromItemId = :itemId) OR (toKind = 'ITEM' AND toItemId = :itemId)")
     suspend fun deleteEdgesForItem(itemId: Int)
+
+    @Query("DELETE FROM edges WHERE (fromKind = 'TODO' AND fromItemId = :todoId) OR (toKind = 'TODO' AND toItemId = :todoId)")
+    suspend fun deleteEdgesForTodo(todoId: Int)
 
     @Query("DELETE FROM edges WHERE boardId = :boardId")
     suspend fun deleteEdgesForBoard(boardId: Int)
@@ -202,7 +212,7 @@ interface TodoDao {
     suspend fun deleteTodosForBoard(boardId: Int)
 }
 
-@Database(entities = [Board::class, CanvasItem::class, Edge::class, Todo::class], version = 11, exportSchema = false)
+@Database(entities = [Board::class, CanvasItem::class, Edge::class, Todo::class], version = 12, exportSchema = false)
 abstract class DroidCanvasDatabase : RoomDatabase() {
     abstract fun droidCanvasDao(): DroidCanvasDao
     abstract fun edgeDao(): EdgeDao
@@ -358,6 +368,39 @@ abstract class DroidCanvasDatabase : RoomDatabase() {
             }
         }
 
+        // Todo berbasis kanvas (langkah 6, T5, P5 opsi (a)): edge boleh
+        // menunjuk todo — tambah kolom penanda jenis ujung + buang dua FK ke
+        // canvas_items (FK SQLite tidak bisa bersyarat). SQLite tidak bisa
+        // menambah/menghapus FK pakai ALTER, jadi tabel dibuat ulang: salin
+        // semua baris (kind lama = ITEM semua), buang tabel lama, ganti
+        // nama, buat ulang indeks. FK boardId TETAP (hapus papan tetap
+        // menghapus garisnya di database).
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `edges_new` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `boardId` INTEGER NOT NULL,
+                        `fromItemId` INTEGER NOT NULL,
+                        `toItemId` INTEGER NOT NULL,
+                        `type` TEXT NOT NULL,
+                        `fromKind` TEXT NOT NULL DEFAULT 'ITEM',
+                        `toKind` TEXT NOT NULL DEFAULT 'ITEM',
+                        FOREIGN KEY(`boardId`) REFERENCES `boards`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+                db.execSQL("""
+                    INSERT INTO `edges_new` (id, boardId, fromItemId, toItemId, type, fromKind, toKind)
+                    SELECT id, boardId, fromItemId, toItemId, type, 'ITEM', 'ITEM' FROM `edges`
+                """.trimIndent())
+                db.execSQL("DROP TABLE IF EXISTS `edges`")
+                db.execSQL("ALTER TABLE `edges_new` RENAME TO `edges`")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_edges_boardId` ON `edges` (`boardId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_edges_fromItemId` ON `edges` (`fromItemId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_edges_toItemId` ON `edges` (`toItemId`)")
+            }
+        }
+
         fun getDatabase(context: Context): DroidCanvasDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -365,7 +408,7 @@ abstract class DroidCanvasDatabase : RoomDatabase() {
                     DroidCanvasDatabase::class.java,
                     "droid_canvas_database"
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance
@@ -378,7 +421,8 @@ abstract class DroidCanvasDatabase : RoomDatabase() {
 class DroidCanvasRepository(
     private val dao: DroidCanvasDao,
     private val edgeDao: EdgeDao,
-    private val todoDao: TodoDao
+    private val todoDao: TodoDao,
+    private val database: DroidCanvasDatabase
 ) {
     val allBoards: Flow<List<Board>> = dao.getAllBoards()
 
@@ -396,7 +440,14 @@ class DroidCanvasRepository(
 
     suspend fun updateCanvasItem(item: CanvasItem) = dao.updateCanvasItem(item)
 
-    suspend fun deleteCanvasItem(item: CanvasItem) = dao.deleteCanvasItem(item)
+    // Hapus gambar + garisnya dalam SATU transaksi (T5): FK ke canvas_items
+    // sudah tidak ada (opsi (a)), jadi repository yang menjamin tidak ada
+    // garis yatim — pemanggil tidak perlu mengingat memanggil
+    // deleteEdgesForItem sendiri.
+    suspend fun deleteCanvasItem(item: CanvasItem) = database.withTransaction {
+        edgeDao.deleteEdgesForItem(item.id)
+        dao.deleteCanvasItem(item)
+    }
 
     suspend fun getMaxZIndex(boardId: Int): Int? = dao.getMaxZIndex(boardId)
 
@@ -418,7 +469,13 @@ class DroidCanvasRepository(
 
     suspend fun updateTodo(todo: Todo) = todoDao.updateTodo(todo)
 
-    suspend fun deleteTodo(todo: Todo) = todoDao.deleteTodo(todo)
+    // Hapus todo + garisnya dalam SATU transaksi (T5) — cermin
+    // deleteCanvasItem di atas; garis ke/dari todo ikut hilang (O3 untuk
+    // todo). Hapus papan tidak perlu ini: FK boardId di `edges` tetap ada.
+    suspend fun deleteTodo(todo: Todo) = database.withTransaction {
+        edgeDao.deleteEdgesForTodo(todo.id)
+        todoDao.deleteTodo(todo)
+    }
 
     suspend fun deleteTodosForBoard(boardId: Int) = todoDao.deleteTodosForBoard(boardId)
 }

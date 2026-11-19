@@ -98,7 +98,7 @@ Semua baris di bawah ini dibaca langsung dari kode di HEAD `d11aee5`
 | P2 | Tampilan selesai | Tetap terlihat, **coret + pudar** — posisi todo adalah informasi; todo yang selesai tetap menandai tempatnya. |
 | P3 | Hapus / ubah teks | **Long-press** seperti hapus gambar (menu konteks) + ketuk teks/kartu untuk ubah lewat dialog (pola dialog note). |
 | P4 | Undo | Todo **ikut snapshot undo** seperti item — tapi perlu baca dulu kode undo sebelum memutuskan (snapshot hari ini hanya item + goresan). |
-| P5 | Model edge untuk todo | **Satu-satunya bagian yang tidak "biasa saja"** (lihat §4.3). Diputuskan sebelum T5; rekomendasi awal: edge boleh menunjuk todo (lihat opsi di §4.3). |
+| P5 | Model edge untuk todo | **DIPUTUSKAN 2026-11-19: opsi (a)** — satu tabel `edges` + kolom `fromKind`/`toKind`; kedua FK ke `canvas_items` DIBUANG (FK SQLite tidak bisa bersyarat — koreksi rancangan awal); hapus berantai di repository (transaksi, dibatasi kind). Lihat §4.3 + ADR-020. |
 
 ## 4. Rancangan
 
@@ -164,13 +164,18 @@ kolom `note` tidak bisa menampung itu.
   `MapNodeCard`): kartu + lingkaran port 12dp di luar kartu. Gesture
   Map yang sudah ada dipakai ulang: seret kartu = pindah node; seret
   dari port = buat edge; ketuk garis = hapus edge (konfirmasi).
-- **Masalah edge (P5 — diputuskan sebelum T5).** Hari ini
+- **Masalah edge (P5 — DIPUTUSKAN 2026-11-19: opsi (a)).** Hari ini
   `Edge.fromItemId`/`toItemId` ber-FK ke `canvas_items`, jadi todo
   **belum bisa** jadi ujung edge. Opsi:
   - (a) Edge boleh menunjuk todo: tambah kolom penanda jenis ujung
-    (`fromKind`/`toKind`: `ITEM`/`TODO`); FK ke `canvas_items` dipertahankan
-    untuk ujung ITEM, penegakan untuk ujung TODO pindah ke kode aplikasi
-    (hapus todo → hapus edge-nya secara eksplisit, seperti O3 Map).
+    (`fromKind`/`toKind`: `ITEM`/`TODO`); **kedua FK ke `canvas_items`
+    DIBUANG** — FK SQLite tidak bisa bersyarat, jadi id todo di kolom
+    ber-FK akan ditolak database (koreksi dari rancangan awal yang
+    mengira FK bisa dipertahankan untuk ujung ITEM). Hapus berantai
+    pindah ke repository (transaksi): hapus gambar/todo → hapus
+    garisnya; `deleteEdgesForItem`/`deleteEdgesForTodo` WAJIB dibatasi
+    kind (id gambar dan id todo bisa sama angkanya). FK `boardId` tetap
+    (hapus papan tetap menghapus garis di database). — **DIPILIH.**
   - (b) Tabel edge terpisah untuk todo (`todo_edges`) — duplikasi seluruh
     logika edge (render, gesture, hapus).
   - (c) Satukan id node (todo memakai ruang id yang sama dengan item) —
@@ -197,8 +202,8 @@ kolom `note` tidak bisa menampung itu.
 | T2 | ViewModel: `todos` Flow + `addTodo`/`updateTodo`/`toggleTodo`/`deleteTodo` + posisi tengah tampilan | **Selesai (kode) 2026-11-19:** `todos` Flow (pola `edges`), `updateTodo`/`toggleTodo`/`deleteTodo` fire-and-forget tanpa snapshot undo (T7), `addTodoAtCenter` (suspend, kembalikan id) mengisi pusat Board + pusat Map sekaligus; posisi = titik tengah kartu |
 | T3 | UI tambah: seksi TODO di tab Paint (di bawah DRAWING TOOLS) + daftar template demo + dialog konfirmasi + dialog isi teks | **Selesai (kode) 2026-11-19:** seksi TODO (K10: lipat/buka, `isTodoExpanded`) di luar gate draw mode (K9); kartu demo statis + entri Blank Todo → dialog konfirmasi → `addTodoAtCenter` → dialog isi teks (`todo_text_input`, simpan kosong dibolehkan) |
 | T4 | Board: kartu todo (centang + teks) + geser + long-press | **Selesai (kode) 2026-11-19:** `TodoCardView` (kartu 220dp, centang + teks, selesai = coret + pudar — P2) di ruang kanvas Board; geser pola gambar (offset lokal + satu tulis DB saat dilepas via `updateTodoPosition`); ketuk kartu → dialog isi teks; long-press (P3) → menu Ubah teks/Hapus; hapus dikonfirmasi (todo belum ikut undo — T7); ketuk centang tidak membuka dialog edit (`down.isConsumed`) |
-| T5 | Map: node todo + port + geser + edge ke/dari todo (**butuh keputusan P5 dulu**) | Belum |
-| T6 | Save/Open: `todos[]` di manifest + Saver + Opener (satu transaksi) | Belum |
+| T5 | Map: node todo + port + geser + edge ke/dari todo | **Selesai (kode) 2026-11-19:** migrasi 11→12 (tabel `edges` dibuat ulang: `fromKind`/`toKind`, FK ke `canvas_items` dibuang, FK `boardId` tetap); `deleteCanvasItem`/`deleteTodo` repository transaksional (hapus garis dibatasi kind); `todos` Flow direstruktur seperti `canvasItems` (db + override Map) + `updateTodoMapPositionInMemory`/`commitTodoMapPosition`; `TodoNodeCard` (180×96dp, centang + teks, port tengah vertikal 48dp) + grid/hit-test/render Map disatukan lewat `MapNode`/`MapEndpoint`; edge gambar↔todo, todo↔todo, duplikat dicek per (kind, id); test `EdgeTodoCascadeTest` 5 kasus (**belum dieksekusi** — butuh `:app:testDebugUnitTest` JDK 21). **Gap sementara:** Saver T5 melewati garis ke/dari todo (manifest belum punya `todos[]`) — ditutup T6. |
+| T6 | Save/Open: `todos[]` di manifest + Saver + Opener (satu transaksi) | Belum — menutup gap T5: `todos[]` + kind (`fromKind`/`toKind`) di edge manifest, Saver menulis garis todo (hari ini dilewati), Opener memvalidasi + insert dalam transaksi yang sama |
 | T7 | Undo: todo ikut snapshot (butuh baca kode undo dulu — P4) | Belum |
 | T8 | Uji manual di perangkat: tambah dari Board + dari Map, geser, centang, hapus gambar (todo tetap), hapus todo (edge ikut hilang), Save → Open (todo utuh) | Belum |
 

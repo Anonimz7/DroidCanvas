@@ -95,8 +95,15 @@ object ProjectSaver {
             uuid to item
         }
 
+        // Todo-edges BELUM disimpan (T5): manifest belum punya todos[]
+        // (T6), jadi garis ke/dari todo tidak bisa dirujuk di arsip —
+        // lewati saja supaya Save tidak gagal (fail-fast di bawah akan
+        // menolaknya karena id todo bukan id gambar); T6 menutup gap ini
+        // (todos[] + kind di manifest). Todo sendiri juga belum disimpan.
+        val itemEdges = edges.filter { it.fromKind == EdgeEndpointKind.ITEM && it.toKind == EdgeEndpointKind.ITEM }
+
         // Gagal cepat, sebelum ada byte yang ditulis.
-        for (edge in edges) {
+        for (edge in itemEdges) {
             require(uuidByItemId.containsKey(edge.fromItemId)) {
                 "Edge ${edge.id} merujuk ke item ${edge.fromItemId} yang tidak ada di papan '${board.name}'"
             }
@@ -117,7 +124,7 @@ object ProjectSaver {
         }
 
         val manifest = buildManifest(
-            board, entries, edges, strokes,
+            board, entries, itemEdges, strokes,
             boardCamera, mapCamera, appVersion, uuidByItemId
         )
 

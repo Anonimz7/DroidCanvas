@@ -12,6 +12,7 @@ import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculateCentroidSize
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -28,12 +29,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckBox
+import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -77,6 +81,8 @@ import coil.request.ImageRequest
 import com.example.data.CanvasItem
 import com.example.data.ConnectionType
 import com.example.data.Edge
+import com.example.data.EdgeEndpointKind
+import com.example.data.Todo
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -97,6 +103,9 @@ private val noteButtonSize = 36.dp
 // from the Board camera, persisted per board in the ViewModel) and nodes
 // that can be dragged anywhere. The grid from fase 2 is only the initial
 // placement for nodes that were never positioned (mapX == 0f && mapY == 0f).
+// Todos (T5) are nodes too: the same card as on the Board, 180dp wide and
+// 96dp tall, with ports — so a todo can be an edge endpoint (dot-to-dot,
+// K7) and can be dragged; its checkbox toggles done.
 //
 // Touch disambiguation (T7) — one awaitEachGesture loop for the whole Map
 // area, like the Board background handler, so no two detectors fight over
@@ -114,6 +123,7 @@ private val noteButtonSize = 36.dp
 fun MapView(
     items: List<CanvasItem>,
     edges: List<Edge>,
+    todos: List<Todo>,
     viewModel: DroidCanvasViewModel,
     modifier: Modifier = Modifier
 ) {
@@ -127,6 +137,10 @@ fun MapView(
     // height: each row is as tall as its tallest node (see gridRowTopYPx),
     // so a noted node (card + bubble + button) never overlaps the row below.
     val cardHeight = 188.dp
+    // Todo node (T5): kartu kompak — centang + teks (maks 2 baris) — tanpa
+    // kontrol note di bawahnya; port di tengah vertikal kartu.
+    val todoCardHeight = 96.dp
+    val todoPortCenterYOffset = 48.dp
     val cellGap = 16.dp
     val startPadding = 16.dp
     // Port center from the card top: the 12dp port sits at y = 54dp, so its
@@ -135,6 +149,8 @@ fun MapView(
 
     val cardWidthPx = with(density) { cardWidth.toPx() }
     val cardHeightPx = with(density) { cardHeight.toPx() }
+    val todoCardHeightPx = with(density) { todoCardHeight.toPx() }
+    val todoPortYOffsetPx = with(density) { todoPortCenterYOffset.toPx() }
     val cellWidthPx = with(density) { (cardWidth + cellGap).toPx() }
     val cellGapPx = with(density) { cellGap.toPx() }
     val startXPx = with(density) { startPadding.toPx() }
@@ -156,12 +172,13 @@ fun MapView(
     // so the loop reads through these instead of the captured params.
     val currentItems by rememberUpdatedState(items)
     val currentEdges by rememberUpdatedState(edges)
+    val currentTodos by rememberUpdatedState(todos)
 
     // Temp edge line while creating an edge (content coords), the pending
-    // (fromId, toId) pair for the type picker, and the edge awaiting delete.
+    // (from, to) endpoint pair for the type picker, and the edge awaiting delete.
     var tempEdgeStart by remember { mutableStateOf<Offset?>(null) }
     var tempEdgeEnd by remember { mutableStateOf<Offset?>(null) }
-    var pendingEdge by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    var pendingEdge by remember { mutableStateOf<Pair<MapEndpoint, MapEndpoint>?>(null) }
     var edgeToDelete by remember { mutableStateOf<Edge?>(null) }
 
     // Note dialog (fase 4, T8): the item being edited and the draft text.
@@ -177,6 +194,38 @@ fun MapView(
     val labelPillBackground = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.9f)
     val tempLineColor = MaterialTheme.colorScheme.onSurfaceVariant
 
+    // Semua node (gambar + todo) dalam SATU daftar terurut — gambar dulu,
+    // lalu todo — supaya slot grid awal tidak bertumpuk (T5). Dipakai badan
+    // MapView dan loop gesture (positionsOf di bawah).
+    fun buildNodes(itemList: List<CanvasItem>, todoList: List<Todo>): List<MapNode> =
+        itemList.map { item ->
+            MapNode(
+                id = item.id, kind = EdgeEndpointKind.ITEM,
+                mapX = item.mapX, mapY = item.mapY,
+                heightPx = nodeHeightPx(item, cardHeightPx, noteGapPx, noteBubbleHeightPx, noteButtonSizePx),
+                cardHeightPx = cardHeightPx, portYOffsetPx = portYOffsetPx
+            )
+        } + todoList.map { todo ->
+            MapNode(
+                id = todo.id, kind = EdgeEndpointKind.TODO,
+                mapX = todo.mapX, mapY = todo.mapY,
+                heightPx = todoCardHeightPx,
+                cardHeightPx = todoCardHeightPx, portYOffsetPx = todoPortYOffsetPx
+            )
+        }
+
+    // Node top-left positions in Map content coords (stored mapX/mapY, or a
+    // deterministic grid slot when never positioned). Row tops come from
+    // gridRowTopYPx, so rows grow with their tallest node.
+    fun positionsOf(nodes: List<MapNode>, cols: Int): Map<MapEndpoint, Offset> {
+        val tops = gridRowTopYPx(nodes, cols, cellGapPx, startYPx)
+        return nodes.mapIndexed { index, node ->
+            MapEndpoint(node.kind, node.id) to effectiveMapPosition(
+                node, index, cols, cellWidthPx, tops, startXPx
+            )
+        }.toMap()
+    }
+
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
@@ -189,14 +238,9 @@ fun MapView(
         // Node top-left positions in Map content coords (stored mapX/mapY,
         // or a deterministic grid slot when never positioned). Row tops
         // come from gridRowTopYPx, so rows grow with their tallest node.
-        val rowTopYPx = gridRowTopYPx(
-            items, columns, cardHeightPx, noteGapPx, noteBubbleHeightPx, noteButtonSizePx, cellGapPx, startYPx
-        )
-        val positions = items.mapIndexed { index, item ->
-            item.id to effectiveMapPosition(
-                item, index, columns, cellWidthPx, rowTopYPx, startXPx
-            )
-        }.toMap()
+        val allNodes = buildNodes(items, todos)
+        val positions = positionsOf(allNodes, columns)
+        val portYByEndpoint = allNodes.associate { MapEndpoint(it.kind, it.id) to it.portYOffsetPx }
 
         Box(
             modifier = Modifier
@@ -217,40 +261,27 @@ fun MapView(
                         fun toScreen(content: Offset) =
                             Offset(content.x * scaleAtDown + txAtDown, content.y * scaleAtDown + tyAtDown)
 
-                        fun positionsOf(list: List<CanvasItem>): Map<Int, Offset> {
-                            val tops = gridRowTopYPx(
-                                list, currentColumns, cardHeightPx, noteGapPx,
-                                noteBubbleHeightPx, noteButtonSizePx, cellGapPx, startYPx
-                            )
-                            return list.mapIndexed { index, item ->
-                                item.id to effectiveMapPosition(
-                                    item, index, currentColumns,
-                                    cellWidthPx, tops, startXPx
-                                )
-                            }.toMap()
-                        }
-
-                        // Topmost first: items are drawn in list (zIndex)
-                        // order, so the last one is on top.
-                        fun portItemAt(screenPos: Offset, list: List<CanvasItem>, posById: Map<Int, Offset>): CanvasItem? {
-                            for (item in list.asReversed()) {
-                                val pos = posById[item.id] ?: continue
-                                val (left, right) = portCenters(pos, cardWidthPx, portYOffsetPx)
-                                if ((toScreen(left) - screenPos).getDistance() <= portTouchRadiusPx) return item
-                                if ((toScreen(right) - screenPos).getDistance() <= portTouchRadiusPx) return item
+                        // Topmost first: todos are drawn after items, so a
+                        // todo node is on top of an item node.
+                        fun portEndpointAt(screenPos: Offset, nodes: List<MapNode>, posById: Map<MapEndpoint, Offset>): MapEndpoint? {
+                            for (node in nodes.asReversed()) {
+                                val pos = posById[MapEndpoint(node.kind, node.id)] ?: continue
+                                val (left, right) = portCenters(pos, cardWidthPx, node.portYOffsetPx)
+                                if ((toScreen(left) - screenPos).getDistance() <= portTouchRadiusPx) return MapEndpoint(node.kind, node.id)
+                                if ((toScreen(right) - screenPos).getDistance() <= portTouchRadiusPx) return MapEndpoint(node.kind, node.id)
                             }
                             return null
                         }
 
-                        fun nodeAt(screenPos: Offset, list: List<CanvasItem>, posById: Map<Int, Offset>): CanvasItem? {
-                            for (item in list.asReversed()) {
-                                val pos = posById[item.id] ?: continue
+                        fun nodeEndpointAt(screenPos: Offset, nodes: List<MapNode>, posById: Map<MapEndpoint, Offset>): MapEndpoint? {
+                            for (node in nodes.asReversed()) {
+                                val pos = posById[MapEndpoint(node.kind, node.id)] ?: continue
                                 val topLeft = toScreen(pos)
                                 val w = cardWidthPx * scaleAtDown
-                                val h = cardHeightPx * scaleAtDown
+                                val h = node.cardHeightPx * scaleAtDown
                                 if (screenPos.x in topLeft.x..(topLeft.x + w) &&
                                     screenPos.y in topLeft.y..(topLeft.y + h)
-                                ) return item
+                                ) return MapEndpoint(node.kind, node.id)
                             }
                             return null
                         }
@@ -264,9 +295,9 @@ fun MapView(
                         // so the gaps between card/bubble/button still pan.
                         // Checked before nodeAt: the strip is below the
                         // card, so it never overlaps the card itself.
-                        fun controlsAt(screenPos: Offset, list: List<CanvasItem>, posById: Map<Int, Offset>): CanvasItem? {
+                        fun controlsAt(screenPos: Offset, list: List<CanvasItem>, posById: Map<MapEndpoint, Offset>): CanvasItem? {
                             for (item in list.asReversed()) {
-                                val pos = posById[item.id] ?: continue
+                                val pos = posById[MapEndpoint(EdgeEndpointKind.ITEM, item.id)] ?: continue
                                 val topLeft = toScreen(pos)
                                 val hasNote = item.note.isNotBlank()
                                 val bubbleTop = topLeft.y + (cardHeightPx + noteGapPx) * scaleAtDown
@@ -287,11 +318,15 @@ fun MapView(
                             return null
                         }
 
-                        fun edgeAt(screenPos: Offset, list: List<CanvasItem>, edgeList: List<Edge>, posById: Map<Int, Offset>): Edge? {
+                        fun edgeAt(screenPos: Offset, edgeList: List<Edge>, posById: Map<MapEndpoint, Offset>, portYById: Map<MapEndpoint, Float>): Edge? {
                             for (edge in edgeList) {
-                                val fromPos = posById[edge.fromItemId] ?: continue
-                                val toPos = posById[edge.toItemId] ?: continue
-                                val curve = edgeCurve(fromPos, toPos, cardWidthPx, portYOffsetPx)
+                                val fromEndpoint = MapEndpoint(edge.fromKind, edge.fromItemId)
+                                val toEndpoint = MapEndpoint(edge.toKind, edge.toItemId)
+                                val fromPos = posById[fromEndpoint] ?: continue
+                                val toPos = posById[toEndpoint] ?: continue
+                                val fromPortY = portYById[fromEndpoint] ?: portYOffsetPx
+                                val toPortY = portYById[toEndpoint] ?: portYOffsetPx
+                                val curve = edgeCurve(fromPos, toPos, cardWidthPx, fromPortY, toPortY)
                                 var minDist = Float.MAX_VALUE
                                 for (i in 0..24) {
                                     val pt = cubicPoint(i / 24f, curve.p0, curve.p1, curve.p2, curve.p3)
@@ -303,20 +338,23 @@ fun MapView(
                         }
 
                         val startList = currentItems
-                        val startPositions = positionsOf(startList)
-                        val sourceItem = portItemAt(downScreen, startList, startPositions)
-                        val controlsItem = if (sourceItem == null) controlsAt(downScreen, startList, startPositions) else null
-                        val targetItem = if (sourceItem == null && controlsItem == null) nodeAt(downScreen, startList, startPositions) else null
+                        val startTodoList = currentTodos
+                        val startNodes = buildNodes(startList, startTodoList)
+                        val startPositions = positionsOf(startNodes, currentColumns)
+                        val sourceEndpoint = portEndpointAt(downScreen, startNodes, startPositions)
+                        val controlsItem = if (sourceEndpoint == null) controlsAt(downScreen, startList, startPositions) else null
+                        val targetEndpoint = if (sourceEndpoint == null && controlsItem == null) nodeEndpointAt(downScreen, startNodes, startPositions) else null
                         val mode = when {
-                            sourceItem != null -> MapDragMode.EDGE_CREATE
+                            sourceEndpoint != null -> MapDragMode.EDGE_CREATE
                             controlsItem != null -> MapDragMode.IGNORED
-                            targetItem != null -> MapDragMode.NODE_DRAG
+                            targetEndpoint != null -> MapDragMode.NODE_DRAG
                             else -> MapDragMode.PAN
                         }
-                        val dragStartPos = targetItem?.let { startPositions[it.id] }
-                        val sourcePort = sourceItem?.let { item ->
-                            val pos = startPositions[item.id] ?: return@let null
-                            val (left, right) = portCenters(pos, cardWidthPx, portYOffsetPx)
+                        val dragStartPos = targetEndpoint?.let { startPositions[it] }
+                        val sourcePort = sourceEndpoint?.let { endpoint ->
+                            val pos = startPositions[endpoint] ?: return@let null
+                            val node = startNodes.find { it.kind == endpoint.kind && it.id == endpoint.id } ?: return@let null
+                            val (left, right) = portCenters(pos, cardWidthPx, node.portYOffsetPx)
                             if ((toScreen(left) - downScreen).getDistance() <=
                                 (toScreen(right) - downScreen).getDistance()
                             ) left else right
@@ -352,20 +390,30 @@ fun MapView(
                                     MapDragMode.NODE_DRAG -> {
                                         val delta = active.position - active.previousPosition
                                         dragDeltaPx += delta
-                                        if (pastSlop) {
-                                            // Undo snapshot once, BEFORE any
-                                            // position override is applied —
-                                            // snapshotting later would capture
-                                            // the already-moved position.
-                                            if (!snapshotTaken) {
-                                                viewModel.saveCurrentStateToUndo()
-                                                snapshotTaken = true
+                                        if (pastSlop && targetEndpoint != null) {
+                                            val newX = dragStartPos!!.x + dragDeltaPx.x / scaleAtDown
+                                            val newY = dragStartPos.y + dragDeltaPx.y / scaleAtDown
+                                            if (targetEndpoint.kind == EdgeEndpointKind.ITEM) {
+                                                val targetItem = currentItems.find { it.id == targetEndpoint.id }
+                                                if (targetItem != null) {
+                                                    // Undo snapshot once, BEFORE any
+                                                    // position override is applied —
+                                                    // snapshotting later would capture
+                                                    // the already-moved position.
+                                                    if (!snapshotTaken) {
+                                                        viewModel.saveCurrentStateToUndo()
+                                                        snapshotTaken = true
+                                                    }
+                                                    viewModel.updateMapPositionInMemory(targetItem, newX, newY)
+                                                }
+                                            } else {
+                                                val targetTodo = currentTodos.find { it.id == targetEndpoint.id }
+                                                if (targetTodo != null) {
+                                                    // Tanpa snapshot undo: todo
+                                                    // belum ikut snapshot (T7).
+                                                    viewModel.updateTodoMapPositionInMemory(targetTodo, newX, newY)
+                                                }
                                             }
-                                            viewModel.updateMapPositionInMemory(
-                                                targetItem!!,
-                                                dragStartPos!!.x + dragDeltaPx.x / scaleAtDown,
-                                                dragStartPos.y + dragDeltaPx.y / scaleAtDown
-                                            )
                                         }
                                         if (delta != Offset.Zero) active.consume()
                                     }
@@ -410,13 +458,19 @@ fun MapView(
 
                         when (mode) {
                             MapDragMode.NODE_DRAG -> {
-                                if (pastSlop && snapshotTaken && targetItem != null) {
+                                if (pastSlop && targetEndpoint != null) {
                                     // One DB write for the whole drag.
-                                    viewModel.commitMapPosition(
-                                        targetItem,
-                                        dragStartPos!!.x + dragDeltaPx.x / scaleAtDown,
-                                        dragStartPos.y + dragDeltaPx.y / scaleAtDown
-                                    )
+                                    val newX = dragStartPos!!.x + dragDeltaPx.x / scaleAtDown
+                                    val newY = dragStartPos.y + dragDeltaPx.y / scaleAtDown
+                                    if (targetEndpoint.kind == EdgeEndpointKind.ITEM) {
+                                        if (snapshotTaken) {
+                                            val targetItem = currentItems.find { it.id == targetEndpoint.id }
+                                            if (targetItem != null) viewModel.commitMapPosition(targetItem, newX, newY)
+                                        }
+                                    } else {
+                                        val targetTodo = currentTodos.find { it.id == targetEndpoint.id }
+                                        if (targetTodo != null) viewModel.commitTodoMapPosition(targetTodo, newX, newY)
+                                    }
                                 }
                                 // Tap on a node (no movement): no-op.
                             }
@@ -424,15 +478,17 @@ fun MapView(
                                 tempEdgeStart = null
                                 tempEdgeEnd = null
                                 val endList = currentItems
-                                val endPositions = positionsOf(endList)
+                                val endTodoList = currentTodos
+                                val endNodes = buildNodes(endList, endTodoList)
+                                val endPositions = positionsOf(endNodes, currentColumns)
                                 // The release target is the whole visual
                                 // node (card + note controls below it), not
                                 // just the card — releasing on a note bubble
                                 // or the + button still counts as that node.
-                                val target = nodeAt(lastFingerScreen, endList, endPositions)
-                                    ?: controlsAt(lastFingerScreen, endList, endPositions)
-                                if (sourceItem != null && target != null && target.id != sourceItem.id) {
-                                    pendingEdge = sourceItem.id to target.id
+                                val target = nodeEndpointAt(lastFingerScreen, endNodes, endPositions)
+                                    ?: controlsAt(lastFingerScreen, endList, endPositions)?.let { MapEndpoint(EdgeEndpointKind.ITEM, it.id) }
+                                if (sourceEndpoint != null && target != null && target != sourceEndpoint) {
+                                    pendingEdge = sourceEndpoint to target
                                 }
                                 // Released on empty space or the same node:
                                 // cancelled, nothing saved.
@@ -440,8 +496,10 @@ fun MapView(
                             MapDragMode.PAN -> {
                                 if (!pastSlop) {
                                     // Tap: hit-test the edge curves.
-                                    val endList = currentItems
-                                    val hit = edgeAt(downScreen, endList, currentEdges, positionsOf(endList))
+                                    val endNodes = buildNodes(currentItems, currentTodos)
+                                    val endPositions = positionsOf(endNodes, currentColumns)
+                                    val endPortY = endNodes.associate { MapEndpoint(it.kind, it.id) to it.portYOffsetPx }
+                                    val hit = edgeAt(downScreen, currentEdges, endPositions, endPortY)
                                     if (hit != null) edgeToDelete = hit
                                 }
                             }
@@ -479,9 +537,13 @@ fun MapView(
                         )
                     }
                     for (edge in edges) {
-                        val fromPos = positions[edge.fromItemId] ?: continue
-                        val toPos = positions[edge.toItemId] ?: continue
-                        val curve = edgeCurve(fromPos, toPos, cardWidthPx, portYOffsetPx)
+                        val fromEndpoint = MapEndpoint(edge.fromKind, edge.fromItemId)
+                        val toEndpoint = MapEndpoint(edge.toKind, edge.toItemId)
+                        val fromPos = positions[fromEndpoint] ?: continue
+                        val toPos = positions[toEndpoint] ?: continue
+                        val fromPortY = portYByEndpoint[fromEndpoint] ?: portYOffsetPx
+                        val toPortY = portYByEndpoint[toEndpoint] ?: portYOffsetPx
+                        val curve = edgeCurve(fromPos, toPos, cardWidthPx, fromPortY, toPortY)
                         val type = ConnectionType.fromName(edge.type)
                         val path = Path().apply {
                             moveTo(curve.p0.x, curve.p0.y)
@@ -519,7 +581,7 @@ fun MapView(
                     }
                 }
                 items.forEachIndexed { index, item ->
-                    val position = positions[item.id] ?: return@forEachIndexed
+                    val position = positions[MapEndpoint(EdgeEndpointKind.ITEM, item.id)] ?: return@forEachIndexed
                     MapNodeCard(
                         item = item,
                         name = "Image #${index + 1}",
@@ -533,6 +595,17 @@ fun MapView(
                         }
                     )
                 }
+                // Todo nodes (T5): kartu kompak + port, sejajar node gambar.
+                todos.forEach { todo ->
+                    val position = positions[MapEndpoint(EdgeEndpointKind.TODO, todo.id)] ?: return@forEach
+                    TodoNodeCard(
+                        todo = todo,
+                        viewModel = viewModel,
+                        modifier = Modifier.offset {
+                            IntOffset(position.x.roundToInt(), position.y.roundToInt())
+                        }
+                    )
+                }
             }
         }
 
@@ -541,7 +614,7 @@ fun MapView(
         // duplicate of the same type in either direction is refused.
         val pending = pendingEdge
         if (pending != null) {
-            val (fromId, toId) = pending
+            val (fromEndpoint, toEndpoint) = pending
             AlertDialog(
                 onDismissRequest = { pendingEdge = null },
                 title = {
@@ -561,8 +634,10 @@ fun MapView(
                                     .clickable {
                                         val exists = currentEdges.any { edge ->
                                             edge.type == type.name &&
-                                                ((edge.fromItemId == fromId && edge.toItemId == toId) ||
-                                                    (edge.fromItemId == toId && edge.toItemId == fromId))
+                                                ((edge.fromKind == fromEndpoint.kind && edge.fromItemId == fromEndpoint.id &&
+                                                    edge.toKind == toEndpoint.kind && edge.toItemId == toEndpoint.id) ||
+                                                    (edge.fromKind == toEndpoint.kind && edge.fromItemId == toEndpoint.id &&
+                                                        edge.toKind == fromEndpoint.kind && edge.toItemId == fromEndpoint.id))
                                         }
                                         if (exists) {
                                             Toast.makeText(
@@ -571,7 +646,13 @@ fun MapView(
                                                 Toast.LENGTH_SHORT
                                             ).show()
                                         } else {
-                                            viewModel.insertEdge(fromId, toId, type)
+                                            viewModel.insertEdge(
+                                                fromItemId = fromEndpoint.id,
+                                                toItemId = toEndpoint.id,
+                                                type = type,
+                                                fromKind = fromEndpoint.kind,
+                                                toKind = toEndpoint.kind
+                                            )
                                         }
                                         pendingEdge = null
                                     }
@@ -695,6 +776,24 @@ fun MapView(
     }
 }
 
+// Satu node di Map (T5): gambar atau todo. Tinggi visual penuh sudah
+// dihitung pemanggil (gambar: kartu + kontrol note; todo: kartu saja),
+// jadi grid dan hit-test tidak perlu tahu jenis node-nya.
+private data class MapNode(
+    val id: Int,
+    val kind: String, // EdgeEndpointKind.ITEM / TODO
+    val mapX: Float,
+    val mapY: Float,
+    val heightPx: Float, // tinggi visual penuh (kartu + kontrol bawah, bila ada)
+    val cardHeightPx: Float, // tinggi kartu saja (daerah hit-test node)
+    val portYOffsetPx: Float // jarak tengah port dari atas kartu
+)
+
+// Satu ujung edge (T5): pasangan (jenis, id) — kunci posisi node dan
+// nilai pendingEdge. Data class supaya `target != source` membedakan
+// gambar #5 dari todo #5 (id boleh sama angkanya).
+private data class MapEndpoint(val kind: String, val id: Int)
+
 // Full visual height of one node in Map content px: the card, then the
 // note controls below it (gap + button, plus bubble + gap when the item
 // has a note). Derived from the same constants MapNodeCard (layout) and
@@ -720,16 +819,12 @@ private fun nodeHeightPx(
 // its stored position, so it must not push grid rows down. A row with no
 // grid-placed nodes is 0 tall (no gap either).
 private fun gridRowTopYPx(
-    items: List<CanvasItem>,
+    nodes: List<MapNode>,
     columns: Int,
-    cardHeightPx: Float,
-    noteGapPx: Float,
-    noteBubbleHeightPx: Float,
-    noteButtonSizePx: Float,
     cellGapPx: Float,
     startYPx: Float
 ): List<Float> {
-    val rows = (items.size + columns - 1) / columns
+    val rows = (nodes.size + columns - 1) / columns
     val tops = ArrayList<Float>(rows)
     var y = startYPx
     for (row in 0 until rows) {
@@ -737,13 +832,10 @@ private fun gridRowTopYPx(
         var tallest = 0f
         for (col in 0 until columns) {
             val index = row * columns + col
-            if (index >= items.size) break
-            val item = items[index]
-            if (item.mapX == 0f && item.mapY == 0f) {
-                tallest = max(
-                    tallest,
-                    nodeHeightPx(item, cardHeightPx, noteGapPx, noteBubbleHeightPx, noteButtonSizePx)
-                )
+            if (index >= nodes.size) break
+            val node = nodes[index]
+            if (node.mapX == 0f && node.mapY == 0f) {
+                tallest = max(tallest, node.heightPx)
             }
         }
         y += tallest
@@ -756,14 +848,14 @@ private fun gridRowTopYPx(
 // grid slot by index (see the MapView header comment). The grid slot's y
 // comes from rowTopYPx (see gridRowTopYPx); x is the uniform column pitch.
 private fun effectiveMapPosition(
-    item: CanvasItem,
+    node: MapNode,
     index: Int,
     columns: Int,
     cellWidthPx: Float,
     rowTopYPx: List<Float>,
     startXPx: Float
 ): Offset {
-    if (item.mapX == 0f && item.mapY == 0f) {
+    if (node.mapX == 0f && node.mapY == 0f) {
         val column = index % columns
         val row = index / columns
         return Offset(
@@ -771,7 +863,7 @@ private fun effectiveMapPosition(
             y = rowTopYPx[row]
         )
     }
-    return Offset(item.mapX, item.mapY)
+    return Offset(node.mapX, node.mapY)
 }
 
 // Port centers of a node card (left, right), in Map content coords.
@@ -793,16 +885,17 @@ private fun edgeCurve(
     fromPos: Offset,
     toPos: Offset,
     cardWidthPx: Float,
-    portYOffsetPx: Float
+    fromPortYOffsetPx: Float,
+    toPortYOffsetPx: Float
 ): EdgeCurve {
     val fromCenterX = fromPos.x + cardWidthPx / 2
     val toCenterX = toPos.x + cardWidthPx / 2
     val (p0, p3) = if (fromCenterX <= toCenterX) {
-        Offset(fromPos.x + cardWidthPx, fromPos.y + portYOffsetPx) to
-            Offset(toPos.x, toPos.y + portYOffsetPx)
+        Offset(fromPos.x + cardWidthPx, fromPos.y + fromPortYOffsetPx) to
+            Offset(toPos.x, toPos.y + toPortYOffsetPx)
     } else {
-        Offset(fromPos.x, fromPos.y + portYOffsetPx) to
-            Offset(toPos.x + cardWidthPx, toPos.y + portYOffsetPx)
+        Offset(fromPos.x, fromPos.y + fromPortYOffsetPx) to
+            Offset(toPos.x + cardWidthPx, toPos.y + toPortYOffsetPx)
     }
     val dx = p3.x - p0.x
     val dy = p3.y - p0.y
@@ -981,6 +1074,96 @@ fun MapNodeCard(
                 .background(MaterialTheme.colorScheme.surface)
                 .border(1.5.dp, MaterialTheme.colorScheme.primary, CircleShape)
                 .testTag("map_port_right_${item.id}")
+        )
+    }
+}
+
+// Todo node di Map (T5, K7): tampil seperti kartu todo di Board (centang
+// + teks) tapi dalam lebar node Map 180dp dan tinggi tetap 96dp, plus port
+// di kiri/kanan seperti node gambar — jadi bisa jadi ujung edge
+// (dot-to-dot). Ketuk centang mencentang; ketuk kartu sendiri tidak
+// membuka apa-apa (edit teks tetap dari Board, seperti ketuk node gambar
+// yang no-op) — loop gesture Map memang no-op untuk ketuk tanpa gerak,
+// jadi centang tidak bentrok dengannya. Drag kartu menggeser node (loop
+// NODE_DRAG); tidak ada menu long-press di Map.
+@Composable
+fun TodoNodeCard(
+    todo: Todo,
+    viewModel: DroidCanvasViewModel,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .width(180.dp)
+            .testTag("map_todo_node_${todo.id}")
+    ) {
+        Card(
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            border = BorderStroke(
+                1.dp,
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(96.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                IconButton(
+                    onClick = { viewModel.toggleTodo(todo) },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = if (todo.done) Icons.Default.CheckBox else Icons.Default.CheckBoxOutlineBlank,
+                        contentDescription = if (todo.done) "Mark as not done" else "Mark as done",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                Text(
+                    text = if (todo.text.isBlank()) "Todo kosong" else todo.text,
+                    color = if (todo.done || todo.text.isBlank()) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    textDecoration = if (todo.done) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+        // Left port — anchor for edge creation (fase 3); visual only here,
+        // the gesture is handled by the MapView pointerInput. Centered
+        // vertically on the 96dp card (center 48dp, minus half the 12dp
+        // port = 42dp).
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .offset(x = (-6).dp, y = 42.dp)
+                .size(12.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surface)
+                .border(1.5.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                .testTag("map_todo_port_left_${todo.id}")
+        )
+        // Right port — anchor for edge creation (fase 3); visual only here.
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .offset(x = 6.dp, y = 42.dp)
+                .size(12.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surface)
+                .border(1.5.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                .testTag("map_todo_port_right_${todo.id}")
         )
     }
 }

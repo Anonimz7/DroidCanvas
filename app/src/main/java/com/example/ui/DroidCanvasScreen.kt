@@ -784,6 +784,7 @@ fun DroidCanvasScreen(
                 MapView(
                     items = canvasItems,
                     edges = edges,
+                    todos = todos,
                     viewModel = viewModel,
                     modifier = Modifier.fillMaxSize()
                 )
