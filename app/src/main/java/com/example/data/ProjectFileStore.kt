@@ -94,7 +94,11 @@ object ProjectFileStore {
         val projection = arrayOf(MediaStore.Downloads._ID)
         val selection =
             "${MediaStore.Downloads.DISPLAY_NAME} = ? AND ${MediaStore.Downloads.RELATIVE_PATH} = ?"
-        val args = arrayOf(displayName, RELATIVE_PATH)
+        // MediaStore menyimpan RELATIVE_PATH dengan garis miring di ujung
+        // ("Download/droidcanvas/") — tanpa garis miring query tidak pernah
+        // cocok, Save selalu menyisipkan berkas baru (MediaStore lalu
+        // menambahkan " (1)" pada nama duplikat). Ditemukan 2026-11-19.
+        val args = arrayOf(displayName, "$RELATIVE_PATH/")
         resolver.query(
             MediaStore.Downloads.EXTERNAL_CONTENT_URI, projection, selection, args, null
         )?.use { cursor ->
