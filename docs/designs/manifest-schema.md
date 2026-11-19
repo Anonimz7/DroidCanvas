@@ -70,7 +70,7 @@ ketiadaan `edges`/`strokes`.
 | `isPinned` | boolean | Ya | Item terkunci. |
 | `flipHorizontal`, `flipVertical` | boolean | Ya | Cermin horizontal/vertikal. |
 | `isValuesEnabled` | boolean | Ya | Values study aktif untuk item ini. |
-| `simplicity` | number | Ya | Nilai simplicity values study. |
+| `simplicity` | integer | Ya | Nilai simplicity values study (0–100, sesuai `CanvasItem.simplicity: Int` + `coerceIn(0, 100)` di ViewModel). |
 | `stopsCount` | integer | Ya | Jumlah stops values study. |
 | `stopsJson` | string | Ya | Boleh `""`. Format dalamnya milik kode values study, bukan bagian skema ini. |
 | `isGrayscale` | boolean | Ya | Tampilan grayscale aktif. |

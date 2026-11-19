@@ -1,6 +1,6 @@
 # Rancangan: Save/Open Project File
 
-> **Status:** Rancangan — keputusan K1–K6 disetujui 2026-11-19 (sesuai rekomendasi), belum dibangun ·
+> **Status:** Rancangan — keputusan K1–K6 disetujui 2026-11-19 (sesuai rekomendasi); Fase 1 (T2) + Fase 2 (T3) selesai 2026-11-19, belum di-push ·
 > Dinamai ulang Export/Import → Save/Open 2026-11-19 (keputusan user;
 > analogi Photoshop: Save/Open = berkas kerja, Export = hasil JPG/PNG) ·
 > **Terakhir ditinjau:** 2026-11-19 · **HEAD:** `7f01519` ·
@@ -183,7 +183,7 @@ Skema formal + contoh lengkap: [`designs/manifest-schema.md`](manifest-schema.md
 |---|---|---|
 | T1 | Putuskan K1–K6 (bagian 3) | Keputusan tercatat di `decisions.md` (ADR-015, 2026-11-19) — **Selesai** |
 | T2 | Tulis skema manifest v1 sebagai dokumen (bagian 4.1) | Skema + satu contoh `manifest.json` di `docs/designs/` — **Selesai** (`designs/manifest-schema.md` + `designs/manifest-example.json`, 2026-11-19) |
-| T3 | `ProjectSerializer`: Save Board+items+strokes → ZIP | Unit test: round-trip 1 papan (2 gambar + 1 goresan) kembali identik |
+| T3 | `ProjectSerializer`: Save Board+items+strokes → ZIP | Unit test: round-trip 1 papan (2 gambar + 1 goresan) kembali identik — **Selesai** (Fase 2, `ProjectSaver` + `ProjectSaverTest`, 2026-11-19) |
 | T4 | `ProjectOpener`: validasi → salin → transaksi Room | Unit test: versi tak dikenal ditolak; ZIP korup ditolak; gambar hilang ditolak; Open gagal = tidak ada papan baru |
 | T5 | `file_paths.xml`: tambah `cache-path` | Berkas ZIP dari `cacheDir` bisa dibuka lewat `FileProvider` |
 | T6 | UI Save/Open di tab BOARD + progres + pesan hasil | Uji manual: Save → kirim ke perangkat lain → Open → isi papan sama |
