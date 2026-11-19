@@ -24,6 +24,7 @@ import com.example.data.ProjectOpener
 import com.example.data.ProjectFileStore
 import com.example.data.ProjectSaver
 import com.example.data.SavedStroke
+import com.example.data.Todo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.onEach
@@ -178,6 +179,22 @@ class DroidCanvasViewModel(
         .flatMapLatest { boardId ->
             if (boardId != null) {
                 repository.getEdgesForBoard(boardId)
+            } else {
+                flowOf(emptyList())
+            }
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    // Todo berbasis kanvas untuk papan aktif (langkah 6, T2) — pola yang
+    // sama persis seperti `edges` di atas.
+    val todos: StateFlow<List<Todo>> = _currentBoardId
+        .flatMapLatest { boardId ->
+            if (boardId != null) {
+                repository.getTodosForBoard(boardId)
             } else {
                 flowOf(emptyList())
             }
@@ -1641,6 +1658,49 @@ class DroidCanvasViewModel(
     fun deleteEdgesForItem(itemId: Int) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.deleteEdgesForItem(itemId)
+        }
+    }
+
+    // Todo berbasis kanvas (langkah 6, T2: thin pass-throughs; UI tambah
+    // dan gesture adalah T3–T5). No undo snapshot here — todos are not part
+    // of the item snapshot stacks yet (T7, P4).
+    fun updateTodo(todo: Todo, text: String) {
+        if (todo.text == text) return
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.updateTodo(todo.copy(text = text))
+        }
+    }
+
+    fun toggleTodo(todo: Todo) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.updateTodo(todo.copy(done = !todo.done))
+        }
+    }
+
+    fun deleteTodo(todo: Todo) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.deleteTodo(todo)
+        }
+    }
+
+    // Sisip blank todo di tengah tampilan yang terlihat (K6). Kedua posisi
+    // diisi sekaligus — pusat Board (dari kamera Board) dan pusat Map (dari
+    // kamera Map) — supaya todo langsung berada di tengah di tampilan mana
+    // pun ia dibuka, tanpa lewat sentinel grid (0,0). Yang disimpan adalah
+    // titik TENGAH kartu (bukan sudut kiri atas seperti CanvasItem); T3/T4
+    // merender kartu terpusat pada titik ini. Mengembalikan id baris supaya
+    // pemanggil (T3) bisa langsung membuka dialog isi teks untuk todo itu.
+    // viewportWidth/Height dalam px (sama seperti fitToContent).
+    suspend fun addTodoAtCenter(text: String, viewportWidth: Float, viewportHeight: Float): Long? {
+        val boardId = _currentBoardId.value ?: return null
+        val boardCx = (viewportWidth / 2f - canvasTranslateX) / canvasScale
+        val boardCy = (viewportHeight / 2f - canvasTranslateY) / canvasScale
+        val mapCx = (viewportWidth / 2f - mapTranslateX) / mapScale
+        val mapCy = (viewportHeight / 2f - mapTranslateY) / mapScale
+        return withContext(Dispatchers.IO) {
+            repository.insertTodo(
+                Todo(boardId = boardId, text = text, posX = boardCx, posY = boardCy, mapX = mapCx, mapY = mapCy)
+            )
         }
     }
 
