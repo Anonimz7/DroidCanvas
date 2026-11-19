@@ -204,6 +204,99 @@ Skema formal + contoh lengkap: [`designs/manifest-schema.md`](manifest-schema.md
 | T9 | Perbarui `roadmap.md` (langkah 1 → selesai), `data-model.md`, `decisions.md` | Dokumen konsisten dengan kode |
 | T10 | Data Map ikut format: `edges` + `mapX`/`mapY` + `note` + `mapCamera`; uji round-trip + buka arsip lama | Round-trip 1 papan ber-edge kembali identik (edge, note, posisi Map, kamera Map); arsip pra-Map terbuka bersih tanpa edge |
 
+### 5.1 Panduan Fase 3 — `ProjectOpener` (T4) + `file_paths` (T5)
+
+> Fase ini dikerjakan user terpisah (2026-11-19). Panduan ini memindahkan
+> konteks yang dibutuhkan — baca dulu sebelum menulis kode.
+
+**Baca dulu:**
+
+- `manifest-schema.md` §7 (8 aturan validasi) + §8 (kompatibilitas pra-Map)
+- `save-open.md` §4.2 (alur Open) + §4.3 (berbagi berkas)
+- `ProjectSaver.kt` — format manifest yang ditulis; pakai ulang
+  `ProjectSaver.FORMAT_VERSION` (jangan duplikasi konstanta)
+- `DroidCanvasDatabase.kt` — entitas + DAO + `DroidCanvasRepository`
+  (catatan: repository saat ini TIDAK memegang objek database)
+- `DroidCanvasViewModel.kt`: `DrawingStroke` (±baris 45),
+  `saveDrawingStrokes`/`loadDrawingStrokes` (format teks
+  `id|color|width|x,y;x,y;…`, berkas `drawing_strokes_<boardId>.txt`),
+  kunci kamera di prefs (`board_scale/trans_x/trans_y_$boardId`,
+  `map_scale/trans_x/trans_y_$boardId`)
+- `file_paths.xml` + `AndroidManifest.xml` (FileProvider, authority
+  `${applicationId}.fileprovider`)
+- `MainActivity.kt` (±baris 52:
+  `DroidCanvasRepository(database.droidCanvasDao(), database.edgeDao())` —
+  satu-satunya tempat repository dibuat)
+- `ProjectSaverTest.kt` (cara membangun arsip di test) +
+  `ExampleRobolectricTest.kt` (pola Robolectric, `@Config(sdk = [36])`)
+
+**Yang dibangun:**
+
+1. `app/src/main/java/com/example/data/ProjectOpener.kt` (package
+   `com.example.data`) — kelas murni: tanpa `Context`, ViewModel, atau
+   Compose. JSON pakai `org.json` (sama seperti Saver). Fungsi utama
+   `suspend`; I/O berkas di `Dispatchers.IO`.
+2. `app/src/test/java/com/example/ProjectOpenerTest.kt` (Robolectric).
+3. `app/src/main/res/xml/file_paths.xml` — tambah `<cache-path>` (T5).
+
+**Aturan keras:**
+
+1. **Validasi dulu, sebelum menyalin apa pun** (skema §7): ZIP valid;
+   `manifest.json` ada + JSON valid; `formatVersion` == 1 — bila bukan,
+   tolak dengan pesan yang menyebut versi yang ditemukan (K6); field wajib
+   ada + tipe benar; `uuid` item unik; tiap `fullFile`/`thumbFile` ada di
+   arsip, stem = `uuid`, path relatif (tolak `/` di awal / `..`); tiap ujung
+   edge merujuk `uuid` yang ada + `type` salah satu dari 8 `ConnectionType`;
+   `points` goresan tidak kosong. Pesan gagal harus menyebut sebabnya.
+2. **Satu transaksi Room** untuk Board + items + edges. Room 2.7.0 +
+   room-ktx tersedia (`withTransaction`). Repository tidak memegang objek
+   database dan DAO tidak bisa bertransaksi lintas DAO — putuskan caranya
+   (mis. repository menerima database, atau metode `@Transaction` di kelas
+   Database). Perubahan konstruktor repository harus ikut mengubah
+   `MainActivity`.
+3. **Id selalu baru** (K4): `boardId` + `id` item dari `autoGenerate`; nama
+   berkas salinan memakai UUID **baru** (`UUID.randomUUID()`), JANGAN pakai
+   ulang uuid arsip sebagai nama berkas. Bangun peta `uuid arsip → id DB
+   baru` selagi insert item; insert edges dengan id hasil pemetaan — dalam
+   transaksi yang sama.
+4. **Kompatibilitas pra-Map:** arsip tanpa `edges`/`mapX`/`mapY`/`note`/
+   `mapCamera` terbuka bersih (tanpa edge, map 0, note `""`, `mapCamera`
+   default 1/0/0). `mapCamera` hilang BUKAN galat. Board baru dibuat dengan
+   `name` + `createdAt` dari manifest; kolom mati `Board` dibiarkan default
+   (K1).
+5. **Goresan:** tulis `drawing_strokes_<newBoardId>.txt` di `filesDir`
+   dengan format teks yang SAMA seperti `saveDrawingStrokes`, supaya
+   `loadDrawingStrokes` bisa membacanya kembali.
+6. **Kamera:** Opener TIDAK menyentuh SharedPreferences. Kembalikan kamera
+   Board + Map dalam hasil Open (mis. `OpenedProject(boardId, boardCamera,
+   mapCamera)`) — ViewModel yang akan menyimpannya (Fase 4; sisi Save sudah
+   ada: `saveProject()`).
+7. **Bersih saat gagal:** bila langkah apa pun gagal setelah penyalinan
+   dimulai, hapus berkas yang sudah disalin; transaksi Room me-rollback
+   papan. Tidak boleh ada papan setengah jadi DAN tidak boleh ada berkas
+   yatim.
+8. **T5:** tambah `<cache-path>` saja. JANGAN tambah `files-path` kecuali
+   ada kebutuhan nyata — gambar di `filesDir` bersifat internal dan tidak
+   pernah dibagikan lewat FileProvider.
+
+**Unit test (bukti T4):** Robolectric, Room in-memory via
+`Room.inMemoryDatabaseBuilder` + `ApplicationProvider.getApplicationContext()`
+(belum ada preseden Room di test repo ini).
+
+- Round-trip penuh: bangun arsip dengan `ProjectSaver` (2 gambar + 1
+  goresan + 1 edge + note + posisi Map + kedua kamera) → Open ke DB
+  in-memory → assert papan BARU (id baru, name/createdAt sama), items
+  (semua field), edges ter-resolve ke id BARU, berkas goresan tertulis
+  dengan isi benar, kamera dikembalikan benar.
+- Penolakan (tiap kasus: jumlah papan tetap + tidak ada berkas tersalin):
+  versi tak dikenal (`formatVersion` 2), ZIP korup (byte sampah), gambar
+  hilang, edge tak valid (ujung tidak ada / type tak dikenal).
+- Arsip pra-Map → terbuka bersih.
+
+**Yang belum terbukti dari sini:** kompilasi + eksekusi test — tidak ada
+Android SDK di VM; bukti datang dari build GitHub Actions (workflow hanya
+`assembleRelease`, belum menjalankan unit test — lihat catatan T3).
+
 ## 6. Di luar lingkup
 
 - Sinkronisasi cloud / akun — aplikasi ini tanpa backend.
