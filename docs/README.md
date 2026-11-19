@@ -31,6 +31,7 @@ Aturan pemeliharaan:
 | [designs/tablet.md](designs/tablet.md) | Rancangan tablet optimization (langkah 3) |
 | [designs/grayscale.md](designs/grayscale.md) | Rancangan grayscale toggle (langkah 4) |
 | [designs/map.md](designs/map.md) | Rancangan Map view — node graph di atas Board (langkah 5) |
+| [designs/todo.md](designs/todo.md) | Rancangan Todo berbasis kanvas — objek kanvas seperti gambar & goresan (langkah 6) |
 
 ## Proyek dalam satu paragraf
 

@@ -128,10 +128,26 @@ Rancangan: [designs/map.md](designs/map.md)
 > fleksibel (geometri turunan).
 
 - `designs/map.md` (keputusan K1–K8 + O1–O5, disetujui user 2026-11-18;
-  to-do T1–T9 selesai, T10 menunggu uji perangkat — fase 7).
+  to-do T1–T10 selesai, uji perangkat lulus 2026-11-19).
 - Migrasi 9→10 sudah jalan (tabel `edges` + kolom `mapX`/`mapY`/`note`);
   format Save/Open sudah mencakup data Map (lihat langkah 1, T10 di
   `designs/save-open.md`).
+
+### 6. Todo berbasis kanvas — objek kanvas (dirancang 2026-11-19, belum dibangun)
+
+Rancangan: [designs/todo.md](designs/todo.md)
+
+> **Dirancang 2026-11-19 (belum dibangun):** todo = objek kanvas seperti
+> gambar & goresan, bukan mode/tool/tampilan. Pemilih di tab Paint, seksi
+> baru di bawah DRAWING TOOLS; template = desain demo, hanya blank todo
+> yang disediakan (diisi manual); tambah lewat ketuk + konfirmasi, posisi
+> awal tengah tampilan; di Map tampil sebagai node yang bisa di-connect
+> dot-to-dot seperti gambar.
+
+- `designs/todo.md` (keputusan K1–K8, usulan P1–P5, to-do T1–T8).
+- Butuh migrasi 10→11 (tabel `todos` + `mapX`/`mapY` per todo) dan
+  keputusan model edge sebelum T5 (todo sebagai ujung edge); format
+  Save/Open bertambah `todos[]` opsional, `formatVersion` tetap 1.
 
 ### Pekerjaan fondasi (jalan bersamaan, sebelum rilis publik)
 
