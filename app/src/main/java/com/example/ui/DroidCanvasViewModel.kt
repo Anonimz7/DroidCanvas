@@ -15,9 +15,11 @@ import com.example.data.Board
 import com.example.data.CameraState
 import com.example.data.CanvasItem
 import com.example.data.ConnectionType
+import com.example.data.DroidCanvasDatabase
 import com.example.data.DroidCanvasRepository
 import com.example.data.Edge
 import com.example.data.ImageStorageHelper
+import com.example.data.ProjectOpener
 import com.example.data.ProjectSaver
 import com.example.data.SavedStroke
 import kotlinx.coroutines.Dispatchers
@@ -62,7 +64,6 @@ data class ValuesResult(
 /**
  * Status Save proyek (Fase 4, T6). `Saved` membawa berkas ZIP di `cacheDir`
  * + nama papan untuk pesan hasil; `Failed` membawa sebab kegagalan (K6).
- * Tombol Open menunggu `ProjectOpener` (Fase 3) — belum ada di sini.
  */
 sealed interface SaveState {
     data object Idle : SaveState
@@ -71,9 +72,23 @@ sealed interface SaveState {
     data class Failed(val message: String) : SaveState
 }
 
+/**
+ * Status Open proyek (Fase 4, T6). `Opened` membawa nama papan baru untuk
+ * pesan hasil; `Failed` membawa sebab kegagalan (K6 — pesan `ProjectOpener`
+ * sudah menyebut sebabnya). Papan baru langsung jadi aktif (kamera +
+ * goresan dimuat lewat `selectBoard`).
+ */
+sealed interface OpenState {
+    data object Idle : OpenState
+    data object Opening : OpenState
+    data class Opened(val boardName: String) : OpenState
+    data class Failed(val message: String) : OpenState
+}
+
 class DroidCanvasViewModel(
     private val repository: DroidCanvasRepository,
-    context: Context
+    context: Context,
+    private val database: DroidCanvasDatabase
 ) : ViewModel() {
     private val TAG = "DroidCanvasViewModel"
     private val appContext = context.applicationContext
@@ -92,6 +107,9 @@ class DroidCanvasViewModel(
     val currentBoardId: StateFlow<Int?> = _currentBoardId.asStateFlow()
 
     var saveState by mutableStateOf<SaveState>(SaveState.Idle)
+        private set
+
+    var openState by mutableStateOf<OpenState>(OpenState.Idle)
         private set
 
     private val _isInitialLoadComplete = MutableStateFlow(false)
@@ -603,6 +621,47 @@ class DroidCanvasViewModel(
 
     fun clearSaveState() {
         saveState = SaveState.Idle
+    }
+
+    fun openProject(uri: Uri) {
+        if (openState is OpenState.Opening) return
+        openState = OpenState.Opening
+        viewModelScope.launch(Dispatchers.IO) {
+            val tempFile = File(appContext.cacheDir, "open-${UUID.randomUUID()}.droidcanvas")
+            try {
+                val input = appContext.contentResolver.openInputStream(uri)
+                    ?: throw IllegalStateException("Tidak bisa membaca berkas yang dipilih")
+                input.use { stream ->
+                    tempFile.outputStream().use { output -> stream.copyTo(output) }
+                }
+                val result = ProjectOpener.open(tempFile, appContext.filesDir, database)
+                val boardName = repository.getBoardById(result.boardId)?.name ?: "Papan"
+                withContext(Dispatchers.Main) {
+                    // Kamera ditulis ke prefs DULU — selectBoard membacanya
+                    // dari prefs (board_scale/trans_x/trans_y + map_*).
+                    prefs.edit()
+                        .putFloat("board_scale_${result.boardId}", result.boardCamera.scale)
+                        .putFloat("board_trans_x_${result.boardId}", result.boardCamera.translateX)
+                        .putFloat("board_trans_y_${result.boardId}", result.boardCamera.translateY)
+                        .putFloat("map_scale_${result.boardId}", result.mapCamera.scale)
+                        .putFloat("map_trans_x_${result.boardId}", result.mapCamera.translateX)
+                        .putFloat("map_trans_y_${result.boardId}", result.mapCamera.translateY)
+                        .apply()
+                    selectBoard(result.boardId)
+                    openState = OpenState.Opened(boardName)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to open project", e)
+                val cause = e.message ?: "Gagal membuka papan"
+                withContext(Dispatchers.Main) { openState = OpenState.Failed(cause) }
+            } finally {
+                tempFile.delete()
+            }
+        }
+    }
+
+    fun clearOpenState() {
+        openState = OpenState.Idle
     }
 
     fun loadDrawingStrokes(boardId: Int): List<DrawingStroke> {
@@ -1889,12 +1948,13 @@ class DroidCanvasViewModel(
 
 class DroidCanvasViewModelFactory(
     private val repository: DroidCanvasRepository,
-    private val context: Context
+    private val context: Context,
+    private val database: DroidCanvasDatabase
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(DroidCanvasViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return DroidCanvasViewModel(repository, context) as T
+            return DroidCanvasViewModel(repository, context, database) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

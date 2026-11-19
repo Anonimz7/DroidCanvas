@@ -53,8 +53,8 @@ class MainActivity : ComponentActivity() {
 
         // 2. Instantiate DroidCanvas ViewModel
         viewModel = ViewModelProvider(
-            this, 
-            DroidCanvasViewModelFactory(repository, applicationContext)
+            this,
+            DroidCanvasViewModelFactory(repository, applicationContext, database)
         )[DroidCanvasViewModel::class.java]
 
         // 3. Handle initial launch intents (e.g. shared images from other apps)

@@ -219,6 +219,7 @@ import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.OutlinedButton
@@ -4146,10 +4147,16 @@ fun SidebarContent(
                 when (tab) {
                 SidebarTab.BOARD -> {
                     // Save/Open proyek (Fase 4, T6): hasil Save dibagikan
-                    // lewat FileProvider + ACTION_SEND; berbagi baru bisa
-                    // jalan setelah cache-path (T5, Fase 3) ditambahkan.
+                    // lewat FileProvider + ACTION_SEND (cache-path T5 sudah
+                    // ada sejak Fase 3); Open memakai ACTION_OPEN_DOCUMENT.
                     val context = LocalContext.current
                     val saveState = viewModel.saveState
+                    val openState = viewModel.openState
+                    val openProjectLauncher = rememberLauncherForActivityResult(
+                        contract = ActivityResultContracts.OpenDocument()
+                    ) { uri ->
+                        if (uri != null) viewModel.openProject(uri)
+                    }
                     LaunchedEffect(saveState) {
                         when (val state = saveState) {
                             is SaveState.Saved -> {
@@ -4170,9 +4177,8 @@ fun SidebarContent(
                                     )
                                     shared = true
                                 } catch (e: Exception) {
-                                    // FileProvider belum mengenal cacheDir
-                                    // (cache-path T5 belum ada) — berkas
-                                    // sudah tersimpan, berbagi menyusul.
+                                    // Berbagi gagal karena sebab lain —
+                                    // berkas sudah tersimpan.
                                     shared = false
                                 }
                                 if (shared) {
@@ -4184,7 +4190,7 @@ fun SidebarContent(
                                 } else {
                                     Toast.makeText(
                                         context,
-                                        "Papan '${state.boardName}' tersimpan, berbagi menyusul setelah cache-path ditambahkan",
+                                        "Papan '${state.boardName}' tersimpan, berbagi gagal",
                                         Toast.LENGTH_LONG
                                     ).show()
                                 }
@@ -4197,6 +4203,27 @@ fun SidebarContent(
                                     Toast.LENGTH_LONG
                                 ).show()
                                 viewModel.clearSaveState()
+                            }
+                            else -> Unit
+                        }
+                    }
+                    LaunchedEffect(openState) {
+                        when (val state = openState) {
+                            is OpenState.Opened -> {
+                                Toast.makeText(
+                                    context,
+                                    "Papan '${state.boardName}' berhasil dibuka",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                                viewModel.clearOpenState()
+                            }
+                            is OpenState.Failed -> {
+                                Toast.makeText(
+                                    context,
+                                    "Gagal membuka: ${state.message}",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                                viewModel.clearOpenState()
                             }
                             else -> Unit
                         }
@@ -4357,7 +4384,6 @@ fun SidebarContent(
                     )
 
                     // Section 2b: Project File (Save/Open — Fase 4, T6).
-                    // Tombol Open menyusul setelah ProjectOpener (Fase 3) ada.
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         SidebarSectionHeader(
                             title = "PROJECT FILE",
@@ -4376,7 +4402,7 @@ fun SidebarContent(
                             ) {
                                 Button(
                                     onClick = { viewModel.saveProject() },
-                                    enabled = saveState !is SaveState.Saving,
+                                    enabled = saveState !is SaveState.Saving && openState !is OpenState.Opening,
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = MaterialTheme.colorScheme.primaryContainer,
                                         contentColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -4402,6 +4428,39 @@ fun SidebarContent(
                                     }
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text("Save Project", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Button(
+                                    onClick = {
+                                        openProjectLauncher.launch(
+                                            arrayOf("application/zip", "application/octet-stream")
+                                        )
+                                    },
+                                    enabled = openState !is OpenState.Opening && saveState !is SaveState.Saving,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                                    ),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("openProjectButton"),
+                                    contentPadding = PaddingValues(0.dp)
+                                ) {
+                                    if (openState is OpenState.Opening) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(14.dp),
+                                            strokeWidth = 2.dp,
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                                        )
+                                    } else {
+                                        Icon(
+                                            imageVector = Icons.Default.FolderOpen,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Open Project", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
