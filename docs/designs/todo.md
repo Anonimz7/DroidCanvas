@@ -88,6 +88,7 @@ Semua baris di bawah ini dibaca langsung dari kode di HEAD `d11aee5`
 | K7 | Tampilan | Board: **kartu todo** (kotak centang + teks). Map: **node seperti gambar** — kartu + port (dot) di sisinya, bisa di-connect dot-to-dot, bisa jadi ujung edge. |
 | K8 | Per papan | Todo milik satu papan (satu workspace = satu set todo), seperti item dan edge. Belum diputuskan eksplisit — lihat P1. |
 | K9 | Switch draw mode | **Todo TIDAK memakai `isDrawModeEnabled`.** Switch itu ada karena menggambar adalah *mode input*: saat nyala, overlay gambar (`DroidCanvasScreen.kt:906`) menangkap semua sentuhan kanvas dan mengubahnya jadi goresan. Tambah todo adalah *aksi diskrit* (ketuk template → konfirmasi → sisip di tengah) — tidak ada gesture kanvas yang ditafsir ulang, jadi tidak butuh mode. Konsekuensi: seksi TODO adalah **sibling** seksi DRAWING TOOLS, di luar gate `if (viewModel.isDrawModeEnabled)` (`:5150`); saat draw mode nyala, overlay tetap mengambil alih sentuhan sehingga kartu todo (seperti gambar) tidak bisa diketuk/digeser sampai draw mode dimatikan. |
+| K10 | Lipat/buka seksi | **Seksi TODO bisa dilipat/dibuka seperti DRAWING TOOLS.** Pola yang sama persis: `SidebarSectionHeader` (chevron `KeyboardArrowDown` yang berputar 0°/−90° dengan spring, `:4156`) + state sendiri `isTodoExpanded` (default `true`, seperti semua seksi lain) + isi dibungkus `AnimatedVisibility` (`expandVertically() + fadeIn()` / `shrinkVertically() + fadeOut()`). Bedanya: slot `action` di header dikosongkan (Drawing Tools memakainya untuk Switch; Todo tidak punya switch — K9). |
 
 ### Usulan (butuh kata user sebelum dibangun)
 
@@ -136,6 +137,9 @@ kolom `note` tidak bisa menampung itu.
 - Seksi baru di bawah kartu DRAWING TOOLS (cabang `SidebarTab.DRAW`,
   setelah kartu ditutup, sebelum `:5441`): header `SidebarSectionHeader`
   (pola seksi yang sama, dengan lipat/buka) + daftar template.
+  **Lipat/buka (K10):** seperti DRAWING TOOLS — state sendiri
+  `isTodoExpanded` (default `true`) + isi dibungkus `AnimatedVisibility`;
+  slot `action` header dikosongkan (tidak ada Switch).
   **Penting (K9):** seksi ini di luar gate `if (viewModel.isDrawModeEnabled)`
   (`:5150`) — pemilih Todo bekerja walau draw mode mati; switch itu hanya
   mengunci kartu drawing tools ("Enable drawing mode to unlock pen
