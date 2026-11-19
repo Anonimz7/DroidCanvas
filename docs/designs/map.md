@@ -301,7 +301,9 @@ dengan apa".
 > prefs); dihapus saat gambarnya dihapus. Seret, port, dan kontrol
 > note tidak kena (sudah dipisah lewat `pastSlop` + urutan hit-test).
 > Ketuk ruang kosong (PAN, bukan garis) mengembalikan node HD ke
-> thumbnail.
+> thumbnail. Efek pop: saat node diketuk, kartu mengembang ~1,12×
+> lalu kembali (~300ms) — animasi visual saja; geometri/edge/
+> hit-test tidak berubah.
 
 ## 6. Yang sengaja tidak dirancang di sini
 

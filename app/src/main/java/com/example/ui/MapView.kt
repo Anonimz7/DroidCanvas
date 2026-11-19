@@ -1,6 +1,9 @@
 package com.example.ui
 
 import android.widget.Toast
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -45,6 +48,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -232,6 +236,9 @@ fun MapView(
     // Note dialog (fase 4, T8): the item being edited and the draft text.
     var noteDialogItem by remember { mutableStateOf<CanvasItem?>(null) }
     var noteDraft by remember { mutableStateOf("") }
+    // Pemicu efek pop (ADR-024): (id node, nonce) — nonce naik tiap ketuk
+    // supaya ketuk berulang pada node yang sama memicu animasi lagi.
+    var popNode by remember { mutableStateOf<Pair<Int, Int>?>(null) }
 
     // Dialog judul + baris todo (R1, K11): judul dari ketuk judul kartu;
     // baris dari ketuk teks baris / tambah dari tombol + di kartu.
@@ -544,6 +551,7 @@ fun MapView(
                                 // kena (tidak ada gambarnya).
                                 else if (!pastSlop && targetEndpoint?.kind == EdgeEndpointKind.ITEM) {
                                     viewModel.toggleMapHd(targetEndpoint.id)
+                                    popNode = targetEndpoint.id to ((popNode?.second ?: 0) + 1)
                                 }
                             }
                             MapDragMode.EDGE_CREATE -> {
@@ -663,6 +671,7 @@ fun MapView(
                         imageFull = imageFull,
                         alwaysFullRes = alwaysFullRes,
                         isHd = mapHdItemId == item.id,
+                        popNonce = if (popNode?.first == item.id) popNode.second else 0,
                         onNoteClick = { clicked ->
                             noteDialogItem = clicked
                             noteDraft = clicked.note
@@ -1167,9 +1176,26 @@ fun MapNodeCard(
     imageFull: Boolean,
     alwaysFullRes: Boolean,
     isHd: Boolean,
+    popNonce: Int = 0,
     onNoteClick: (CanvasItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // Efek pop (ADR-024): saat node diketuk, kartu mengembang ~1,12x lalu
+    // kembali — animasi visual saja (spring ~300ms); posisi grid, garis
+    // edge, port, dan hit-test tidak berubah.
+    val popScale = remember { Animatable(1f) }
+    LaunchedEffect(popNonce) {
+        if (popNonce > 0) {
+            popScale.animateTo(
+                1.12f,
+                spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow)
+            )
+            popScale.animateTo(
+                1f,
+                spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow)
+            )
+        }
+    }
     // The ports sit OUTSIDE the Card (half past its left/right edge) so they
     // are not clipped by the Card's rounded shape. They are centered on the
     // thumbnail (tengah thumbnail = setengah mapThumbHeightDp, minus half
@@ -1182,6 +1208,11 @@ fun MapNodeCard(
     Box(
         modifier = modifier
             .width(180.dp)
+            .graphicsLayer {
+                scaleX = popScale.value
+                scaleY = popScale.value
+                transformOrigin = TransformOrigin.Center
+            }
             .testTag("map_node_${item.id}")
     ) {
         Column {
