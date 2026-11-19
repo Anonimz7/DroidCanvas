@@ -671,7 +671,7 @@ fun MapView(
                         imageFull = imageFull,
                         alwaysFullRes = alwaysFullRes,
                         isHd = mapHdItemId == item.id,
-                        popNonce = if (popNode?.first == item.id) popNode.second else 0,
+                        popNonce = popNode?.takeIf { it.first == item.id }?.second ?: 0,
                         onNoteClick = { clicked ->
                             noteDialogItem = clicked
                             noteDraft = clicked.note
