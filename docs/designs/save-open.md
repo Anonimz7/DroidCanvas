@@ -1,9 +1,9 @@
 # Rancangan: Save/Open Project File
 
-> **Status:** Rancangan — belum disetujui, belum dikerjakan ·
+> **Status:** Rancangan — keputusan K1–K6 disetujui 2026-11-19 (sesuai rekomendasi), belum dibangun ·
 > Dinamai ulang Export/Import → Save/Open 2026-11-19 (keputusan user;
 > analogi Photoshop: Save/Open = berkas kerja, Export = hasil JPG/PNG) ·
-> **Terakhir ditinjau:** 2026-11-19 · **HEAD:** `65c55d7` ·
+> **Terakhir ditinjau:** 2026-11-19 · **HEAD:** `c0681c1` ·
 > **Merujuk:** [roadmap.md](../roadmap.md) langkah 1 · [gaps.md](../gaps.md) G5, G20 · [data-model.md](../data-model.md)
 
 ## 1. Tujuan
@@ -37,9 +37,9 @@ ada adalah `exportSchema = false` di Room, dan itu arti yang berbeda.
   `SEND_MULTIPLE`), tapi itu impor gambar, bukan impor proyek.
 - Undo/redo adalah snapshot seluruh daftar item (`DroidCanvasViewModel.kt:127-128`).
 
-## 3. Keputusan yang harus diambil dulu
+## 3. Keputusan (disetujui 2026-11-19, sesuai rekomendasi)
 
-| # | Keputusan | Pilihan | Rekomendasi |
+| # | Keputusan | Pilihan | Keputusan |
 |---|---|---|---|
 | K1 | Kolom mati ikut manifest? | Ikut / buang | **Buang**, kecuali keputusan kolom mati (G3/G10) bilang dipakai. Manifest hanya berisi data yang hidup. |
 | K2 | Satu berkas = satu papan? | Satu papan / banyak papan | **Satu papan** untuk v1. Multi-papan = v2. |
@@ -179,7 +179,7 @@ nama-papan.droidcanvas
 
 | # | Kerja | Target / bukti selesai |
 |---|---|---|
-| T1 | Putuskan K1–K6 (bagian 3) | Keputusan tercatat di `decisions.md` (ADR baru) |
+| T1 | Putuskan K1–K6 (bagian 3) | Keputusan tercatat di `decisions.md` (ADR-015, 2026-11-19) — **Selesai** |
 | T2 | Tulis skema manifest v1 sebagai dokumen (bagian 4.1) | Skema + satu contoh `manifest.json` di `docs/designs/` |
 | T3 | `ProjectSerializer`: Save Board+items+strokes → ZIP | Unit test: round-trip 1 papan (2 gambar + 1 goresan) kembali identik |
 | T4 | `ProjectOpener`: validasi → salin → transaksi Room | Unit test: versi tak dikenal ditolak; ZIP korup ditolak; gambar hilang ditolak; Open gagal = tidak ada papan baru |

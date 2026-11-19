@@ -167,3 +167,10 @@ keputusannya dipertanyakan oleh temuan pemetaan — lihat [gaps.md](gaps.md).
   tidak menjalankan tes. CI hari ini bukan pengaman kualitas; jadikan begitu
   (tambah job `assembleDebug` + `testDebugUnitTest` tanpa keystore) sebelum
   mengandalkan CI untuk review.
+
+## ADR-015 — Save/Open berkas proyek: format arsip v1
+
+- **Status:** Diterima (2026-11-19; belum dibangun).
+- **Konteks:** Satu papan harus bisa disimpan jadi satu berkas, dipindah ke perangkat lain, dan dibuka kembali utuh. Nama fitur diputuskan Save/Open (analogi Photoshop), bukan Export/Import; Export adalah fitur terpisah (render JPG/PNG).
+- **Keputusan:** K1 kolom mati **dibuang** dari manifest (hanya data hidup); K2 satu berkas = **satu papan** (v1); K3 ekstensi **`.droidcanvas`** (ZIP); K4 Open **selalu papan baru** (id baru, tanpa dialog konflik); K5 values study **dihitung ulang** saat Open; K6 versi format tak dikenal **ditolak dengan pesan yang jelas**. Rancangan: `docs/designs/save-open.md`.
+- **Konsekuensi:** Format v1 membeku sebelum dibangun; arsip pra-Map tetap terbaca (field Map opsional); multi-papan dan Export JPG/PNG tetap di luar lingkup.

@@ -58,6 +58,8 @@ Setiap langkah merujuk ke dokumen yang relevan.
 
 ### 1. Save/Open project file — fitur besar berikutnya
 
+> **Keputusan K1–K6 disetujui 2026-11-19 (sesuai rekomendasi)** — lihat `designs/save-open.md` §3 (ADR-015). Belum dibangun.
+
 Rancangan: [designs/save-open.md](designs/save-open.md)
 
 Desain dulu, baru kode (satu dokumen desain per fitur, pola photocraft):
@@ -73,7 +75,7 @@ Desain dulu, baru kode (satu dokumen desain per fitur, pola photocraft):
   transaksi; impor yang gagal tidak boleh meninggalkan papan setengah jadi.
 - **UI:** tombol Save/Open di tab BOARD; berbagi lewat `FileProvider`
   (perhatikan `file_paths.xml` hari ini hanya mengekspos `downloads/`).
-- Prasyarat: keputusan langkah 0 (kolom mana yang ikut diekspor).
+- Prasyarat: keputusan langkah 0 (kolom mana yang ikut disimpan).
 
 ### 2. Undo/redo gesture — kecil-menengah
 
