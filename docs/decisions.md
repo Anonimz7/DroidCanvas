@@ -170,7 +170,14 @@ keputusannya dipertanyakan oleh temuan pemetaan — lihat [gaps.md](gaps.md).
 
 ## ADR-015 — Save/Open berkas proyek: format arsip v1
 
-- **Status:** Diterima (2026-11-19; belum dibangun).
+- **Status:** Diterima (2026-11-19; sudah dibangun, Fase 1–5).
 - **Konteks:** Satu papan harus bisa disimpan jadi satu berkas, dipindah ke perangkat lain, dan dibuka kembali utuh. Nama fitur diputuskan Save/Open (analogi Photoshop), bukan Export/Import; Export adalah fitur terpisah (render JPG/PNG).
 - **Keputusan:** K1 kolom mati **dibuang** dari manifest (hanya data hidup); K2 satu berkas = **satu papan** (v1); K3 ekstensi **`.droidcanvas`** (ZIP); K4 Open **selalu papan baru** (id baru, tanpa dialog konflik); K5 values study **dihitung ulang** saat Open; K6 versi format tak dikenal **ditolak dengan pesan yang jelas**. Rancangan: `docs/designs/save-open.md`.
 - **Konsekuensi:** Format v1 membeku sebelum dibangun; arsip pra-Map tetap terbaca (field Map opsional); multi-papan dan Export JPG/PNG tetap di luar lingkup.
+
+## ADR-016 — Wiring Open: database ke ViewModel, kamera via prefs, uji T7/T8
+
+- **Status:** Diterima (2026-11-19; sudah dibangun, Fase 4–5).
+- **Konteks:** Tombol Open butuh `ProjectOpener.open(berkas, filesDir, database)` — Opener butuh objek database untuk `withTransaction` lintas-DAO, sementara ViewModel selama ini hanya memegang repository.
+- **Keputusan:** (a) Database diteruskan ke ViewModel lewat factory (`DroidCanvasViewModelFactory(repository, context, database)`; `MainActivity` sudah memegang `database`) — repository tidak diubah. (b) `openProject(uri)`: salin URI ke temp ZIP di `cacheDir` (nama `open-<uuid>.droidcanvas`, dihapus di `finally`), panggil Opener, tulis kedua kamera ke prefs **sebelum** `selectBoard` — karena `selectBoard` membaca kamera dari prefs. Papan baru langsung aktif. (c) T7 (buka dua kali) + T8 (20 gambar) ditutup dengan unit test di `ProjectOpenerTest` (total 9 test); ANR + values study terhitung ulang tetap uji perangkat (Fase 7) karena tidak bisa dibuktikan unit test.
+- **Konsekuensi:** ViewModel kini bergantung pada database (bukan hanya repository); `MainActivity` adalah satu-satunya situs konstruksi factory. Pesan gagal Open sudah menyebut sebabnya (K6) lewat `ProjectOpenException`.

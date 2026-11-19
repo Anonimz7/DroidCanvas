@@ -125,6 +125,7 @@ Ditulis oleh `ImageStorageHelper.importImage()`:
 ```
 
 - Ditulis utuh setiap kali goresan selesai/dihapus (`saveDrawingStrokes`).
+- Juga ditulis oleh `ProjectOpener` saat Open, isinya dari manifest arsip.
 - Dibaca saat papan dipilih (`loadDrawingStrokes`); baris rusak dilewati diam-diam.
 - Optimasi diterapkan sebelum simpan: RDP epsilon 0.8 + Chaikin 2 iterasi.
 - Tidak ada migrasi format — mengubah format berarti memutus goresan lama.
@@ -150,3 +151,40 @@ Ditulis oleh `ImageStorageHelper.importImage()`:
 - `decodedBitmapCache` — LRU 5 bitmap (hanya dipakai values processing).
 - Undo/redo stacks (maks 50 snapshot) — hilang saat proses mati.
 - `activeStroke` — goresan yang sedang digambar.
+
+## Save/Open — berkas proyek `.droidcanvas` (Fase 1–5, 2026-11-19)
+
+Format + rancangan: `designs/save-open.md`, skema formal
+`designs/manifest-schema.md` + contoh `designs/manifest-example.json`.
+
+- **Arsip:** ZIP berisi `manifest.json` di root +
+  `images/<uuid>_full.<ext>` + `images/<uuid>_thumb.jpg` + (opsional)
+  `edges`, `strokes`. `formatVersion` harus 1; kolom mati `Board` tidak ikut
+  (K1); satu berkas = satu papan (K2); Open selalu papan baru (K4); values
+  study dihitung ulang saat Open (K5) — bitmap values TIDAK disimpan di arsip.
+- **`ProjectSaver`** (`data`, kelas murni): Board + items + edges + goresan →
+  ZIP. Satu UUID baru per item per Save, dipakai sebagai stem nama berkas
+  arsip. Gagal sebelum menulis apa pun bila edge merujuk item yang tidak ada
+  / type tak dikenal / gambar sumber hilang.
+- **`ProjectOpener`** (`data`, kelas murni): validasi 8 aturan skema → salin
+  gambar ke `filesDir` dengan nama `ref_full_<uuid baru>.<ext>` /
+  `ref_thumb_<uuid baru>.jpg` → insert Board + items + edges dalam **satu
+  transaksi Room** (`database.withTransaction`) → tulis
+  `drawing_strokes_<newBoardId>.txt` (format teks sama seperti
+  `saveDrawingStrokes`). Mengembalikan `OpenedProject(boardId, boardCamera,
+  mapCamera)`; TIDAK menyentuh SharedPreferences. Gagal = rollback + berkas
+  staged dihapus.
+- **ViewModel:** `saveProject()` menulis ZIP ke `cacheDir` + `saveState`
+  (`SaveState`); `openProject(uri)` menyalin URI ke temp
+  `open-<uuid>.droidcanvas` di `cacheDir` (dihapus di `finally`), memanggil
+  Opener, menulis kedua kamera ke prefs **sebelum** `selectBoard` (yang
+  membaca kamera dari prefs), lalu `openState` (`OpenState`). ViewModel
+  menerima objek `DroidCanvasDatabase` lewat factory (ADR-016) — repository
+  tidak diubah. UI: tombol Save/Open di tab BOARD, seksi PROJECT FILE; Open
+  lewat `ACTION_OPEN_DOCUMENT` (MIME `application/zip` +
+  `application/octet-stream`); berbagi Save lewat `FileProvider`
+  (`cache-path project_cache`, T5).
+- **Test:** `ProjectSaverTest` 5/5 + `ProjectOpenerTest` 7/7 terbukti hijau
+  (round-trip, 5 penolakan, pra-Map); 2 test baru T7 (buka-dua-kali) + T8
+  (papan 20 gambar) ditambah 2026-11-19, belum dieksekusi —
+  `:app:testDebugUnitTest`, JDK 21 (Robolectric sdk 36 menolak JDK 17).

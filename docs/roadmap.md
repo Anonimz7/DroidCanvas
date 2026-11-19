@@ -23,7 +23,7 @@
 |---|---|
 | Tablet optimization | ⚠️ **Sebatas breakpoint** — satu-satunya adaptasi tablet adalah sidebar tetap vs drawer pada `maxWidth >= 720.dp`. Tanpa layout khusus tablet, tanpa dukungan stylus/pen khusus, tanpa multi-window. |
 | Crop tool | ✅ **Sudah jadi** — `CropImageDialog` lengkap (rasio, handle) + `cropCanvasItem` di ViewModel. Status "berjalan" di README sudah kedaluwarsa; pindahkan ke selesai. |
-| Save/Open project file | ⚠️ **Dibangun 2026-11-19 (Fase 1–4, kode selesai)** — format `.droidcanvas` (ZIP + manifest v1, `designs/manifest-schema.md`); `ProjectSaver` + `ProjectOpener` dengan unit test hijau (5/5 + 7/7); tombol Save + Open + progres + berbagi lewat FileProvider sudah ada. Uji manual end-to-end di Fase 7. Lihat `designs/save-open.md` |
+| Save/Open project file | ⚠️ **Dibangun 2026-11-19 (Fase 1–6)** — format `.droidcanvas` (ZIP + manifest v1, `designs/manifest-schema.md`); `ProjectSaver` + `ProjectOpener` dengan unit test (5/5 + 7/7 terbukti; 2 test baru T7/T8 belum dieksekusi); tombol Save + Open + progres + berbagi lewat FileProvider sudah ada. Uji manual end-to-end di Fase 7. Lihat `designs/save-open.md` |
 
 ### Belum selesai (menurut README)
 
@@ -58,7 +58,7 @@ Setiap langkah merujuk ke dokumen yang relevan.
 
 ### 1. Save/Open project file — fitur besar berikutnya
 
-> **Keputusan K1–K6 disetujui 2026-11-19 (sesuai rekomendasi)** — lihat `designs/save-open.md` §3 (ADR-015). Fase 1 + Fase 2 selesai & di-push; **Fase 3 selesai 2026-11-19** (`ProjectOpener` + `ProjectOpenerTest` 7/7 hijau + `cache-path` di `file_paths.xml` — kompilasi + unit test terbukti, lihat `designs/save-open.md` §5.1); Fase 4 selesai (kode: tombol Save + Open + progres + pesan hasil; uji manual end-to-end di Fase 7).
+> **Keputusan K1–K6 disetujui 2026-11-19 (sesuai rekomendasi)** — lihat `designs/save-open.md` §3 (ADR-015). Fase 1 + Fase 2 selesai & di-push; **Fase 3 selesai 2026-11-19** (`ProjectOpener` + `ProjectOpenerTest` 7/7 hijau + `cache-path` di `file_paths.xml` — kompilasi + unit test terbukti, lihat `designs/save-open.md` §5.1); Fase 4 selesai (kode: tombol Save + Open + progres + pesan hasil); Fase 5 selesai (kode test T7/T8/T10 — 2 test baru belum dieksekusi); Fase 6 selesai (dokumen penutup, T9). Tersisa Fase 7: uji manual end-to-end di perangkat.
 
 Rancangan: [designs/save-open.md](designs/save-open.md)
 
