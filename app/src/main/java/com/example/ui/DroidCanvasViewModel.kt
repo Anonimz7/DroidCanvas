@@ -1,7 +1,7 @@
 package com.example.ui
 
 import android.content.Context
-import android.net.Uri
+import android.provider.OpenableColumns
 import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -20,6 +20,7 @@ import com.example.data.DroidCanvasRepository
 import com.example.data.Edge
 import com.example.data.ImageStorageHelper
 import com.example.data.ProjectOpener
+import com.example.data.ProjectFileStore
 import com.example.data.ProjectSaver
 import com.example.data.SavedStroke
 import kotlinx.coroutines.Dispatchers
@@ -62,15 +63,27 @@ data class ValuesResult(
 )
 
 /**
- * Status Save proyek (Fase 4, T6). `Saved` membawa berkas ZIP di `cacheDir`
- * + nama papan untuk pesan hasil; `Failed` membawa sebab kegagalan (K6).
+ * Status Save proyek. `Saved` membawa nama berkas di
+ * `Download/droidcanvas` + nama papan untuk pesan hasil, dan apakah
+ * berbagi harus jalan setelahnya (tombol Share); `Failed` membawa sebab
+ * kegagalan (K6). Sejak Save ulang (2026-11-19) Save TIDAK lagi membuka
+ * share sheet — berbagi hanya lewat tombol Share.
  */
 sealed interface SaveState {
     data object Idle : SaveState
     data object Saving : SaveState
-    data class Saved(val file: File, val boardName: String) : SaveState
+    data class Saved(val fileName: String, val boardName: String, val shareAfter: Boolean) : SaveState
     data class Failed(val message: String) : SaveState
 }
+
+/** Mode dialog penamaan saat Save (Save ulang, 2026-11-19). */
+enum class SaveNameMode { SAVE, SAVE_AS, SHARE }
+
+/**
+ * Permintaan dialog penamaan: mode yang memintanya + nama default
+ * (nama papan, atau target saat ini untuk Save As).
+ */
+data class SaveNameRequest(val mode: SaveNameMode, val defaultName: String)
 
 /**
  * Status Open proyek (Fase 4, T6). `Opened` membawa nama papan baru untuk
@@ -107,6 +120,10 @@ class DroidCanvasViewModel(
     val currentBoardId: StateFlow<Int?> = _currentBoardId.asStateFlow()
 
     var saveState by mutableStateOf<SaveState>(SaveState.Idle)
+        private set
+
+    /** Dialog penamaan Save (null = tidak tampil). */
+    var saveNameDialog by mutableStateOf<SaveNameRequest?>(null)
         private set
 
     var openState by mutableStateOf<OpenState>(OpenState.Idle)
@@ -569,13 +586,87 @@ class DroidCanvasViewModel(
     }
 
     /**
-     * Save papan aktif jadi arsip `.dc` di `cacheDir` (Fase 4, T6).
-     * Memetakan [DrawingStroke] ke [SavedStroke], membaca kamera Board +
-     * Map dari state, lalu memanggil [ProjectSaver]. Berbagi berkas
-     * (`FileProvider` + `ACTION_SEND`) dilakukan Screen saat state `Saved` —
-     * dan baru bisa jalan setelah `cache-path` (T5, Fase 3) ditambahkan.
+     * Nama berkas target Save papan ini, bila pernah disimpan/dibuka
+     * (diingat per papan di prefs; kunci `save_file_<boardId>`).
      */
-    fun saveProject() {
+    private fun savedFileName(boardId: Int): String? =
+        prefs.getString("save_file_$boardId", null)
+
+    private fun activeBoardName(boardId: Int): String =
+        boards.value.find { it.id == boardId }?.name ?: "board"
+
+    /**
+     * Tombol Save: simpan ke target yang diingat; bila papan ini belum
+     * pernah disimpan, minta nama dulu lewat dialog (default = nama papan,
+     * pengguna boleh menggantinya atau tidak).
+     */
+    fun requestSave() {
+        if (saveState is SaveState.Saving) return
+        val boardId = _currentBoardId.value ?: run {
+            saveState = SaveState.Failed("Tidak ada papan aktif")
+            return
+        }
+        val target = savedFileName(boardId)
+        if (target != null) {
+            saveProject(displayName = target, shareAfter = false)
+        } else {
+            saveNameDialog = SaveNameRequest(SaveNameMode.SAVE, activeBoardName(boardId))
+        }
+    }
+
+    /**
+     * Tombol Save As: selalu minta nama (default = target saat ini tanpa
+     * `.dc`, atau nama papan). Berkas baru itu jadi target Save berikutnya.
+     */
+    fun requestSaveAs() {
+        if (saveState is SaveState.Saving) return
+        val boardId = _currentBoardId.value ?: run {
+            saveState = SaveState.Failed("Tidak ada papan aktif")
+            return
+        }
+        val default = savedFileName(boardId)?.removeSuffix(".dc")
+            ?: activeBoardName(boardId)
+        saveNameDialog = SaveNameRequest(SaveNameMode.SAVE_AS, default)
+    }
+
+    /**
+     * Tombol Share: simpan dulu (segar, ke target yang diingat — atau
+     * minta nama dulu bila belum pernah disimpan), lalu bagikan. Berbagi
+     * selalu dari berkas tersimpan, bukan dari keadaan yang belum di-save.
+     */
+    fun requestShare() {
+        if (saveState is SaveState.Saving) return
+        val boardId = _currentBoardId.value ?: run {
+            saveState = SaveState.Failed("Tidak ada papan aktif")
+            return
+        }
+        val target = savedFileName(boardId)
+        if (target != null) {
+            saveProject(displayName = target, shareAfter = true)
+        } else {
+            saveNameDialog = SaveNameRequest(SaveNameMode.SHARE, activeBoardName(boardId))
+        }
+    }
+
+    fun dismissSaveNameDialog() {
+        saveNameDialog = null
+    }
+
+    /** Konfirmasi dialog penamaan → simpan dengan nama itu. */
+    fun confirmSaveName(rawName: String) {
+        val request = saveNameDialog ?: return
+        saveNameDialog = null
+        val displayName = ProjectFileStore.sanitizeFileName(rawName, request.defaultName)
+        saveProject(displayName = displayName, shareAfter = request.mode == SaveNameMode.SHARE)
+    }
+
+    /**
+     * Save papan aktif jadi arsip `.dc` di `Download/droidcanvas`
+     * (Save ulang, 2026-11-19). ZIP dibangun dulu ke temp di `cacheDir`
+     * lewat [ProjectSaver], lalu disalin ke penyimpanan publik lewat
+     * [ProjectFileStore] (nama sama = timpa). Target diingat di prefs.
+     */
+    private fun saveProject(displayName: String, shareAfter: Boolean) {
         if (saveState is SaveState.Saving) return
         val boardId = _currentBoardId.value ?: run {
             saveState = SaveState.Failed("Tidak ada papan aktif")
@@ -583,13 +674,10 @@ class DroidCanvasViewModel(
         }
         saveState = SaveState.Saving
         viewModelScope.launch(Dispatchers.IO) {
+            val tempFile = File(appContext.cacheDir, "save-${UUID.randomUUID()}.dc")
             try {
                 val board = repository.getBoardById(boardId)
                     ?: throw IllegalStateException("Papan tidak ditemukan")
-                val fileName = board.name
-                    .replace(Regex("[^A-Za-z0-9._-]+"), "_")
-                    .ifEmpty { "board" } + ".dc"
-                val outputFile = File(appContext.cacheDir, fileName)
                 val strokes = drawingStrokes.value.map { stroke ->
                     SavedStroke(
                         id = stroke.id,
@@ -606,18 +694,47 @@ class DroidCanvasViewModel(
                     boardCamera = CameraState(canvasScale, canvasTranslateX, canvasTranslateY),
                     mapCamera = CameraState(mapScale, mapTranslateX, mapTranslateY),
                     appVersion = BuildConfig.VERSION_NAME,
-                    outputFile = outputFile
+                    outputFile = tempFile
                 )
+                ProjectFileStore.writeProjectFile(
+                    appContext.contentResolver, displayName, tempFile
+                )
+                prefs.edit().putString("save_file_$boardId", displayName).apply()
                 withContext(Dispatchers.Main) {
-                    saveState = SaveState.Saved(outputFile, board.name)
+                    saveState = SaveState.Saved(displayName, board.name, shareAfter)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to save project", e)
                 val cause = e.message ?: "Gagal menyimpan papan"
                 withContext(Dispatchers.Main) { saveState = SaveState.Failed(cause) }
+            } finally {
+                tempFile.delete()
             }
         }
     }
+
+    /**
+     * Salin berkas tersimpan ke `cacheDir` (nama `share-<displayName>`,
+     * ditimpa tiap kali) supaya bisa dibagikan lewat `FileProvider` —
+     * satu jalur berbagi untuk semua API, termasuk berkas MediaStore.
+     * Null bila berkas tidak ditemukan / gagal dibaca.
+     */
+    suspend fun copySavedFileToCache(displayName: String): File? =
+        withContext(Dispatchers.IO) {
+            try {
+                val uri = ProjectFileStore.findProjectFileUri(
+                    appContext.contentResolver, displayName
+                ) ?: return@withContext null
+                val target = File(appContext.cacheDir, "share-$displayName")
+                appContext.contentResolver.openInputStream(uri)?.use { input ->
+                    target.outputStream().use { output -> input.copyTo(output) }
+                } ?: return@withContext null
+                target
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to prepare share file", e)
+                null
+            }
+        }
 
     fun clearSaveState() {
         saveState = SaveState.Idle
@@ -636,6 +753,10 @@ class DroidCanvasViewModel(
                 }
                 val result = ProjectOpener.open(tempFile, appContext.filesDir, database)
                 val boardName = repository.getBoardById(result.boardId)?.name ?: "Papan"
+                // Target Save papan baru = berkas asal yang dibuka (seperti
+                // Photoshop: Save menulis kembali ke berkas yang dibuka).
+                val sourceName = queryDisplayName(uri) ?: "$boardName.dc"
+                val targetName = ProjectFileStore.sanitizeFileName(sourceName, boardName)
                 withContext(Dispatchers.Main) {
                     // Kamera ditulis ke prefs DULU — selectBoard membacanya
                     // dari prefs (board_scale/trans_x/trans_y + map_*).
@@ -646,6 +767,7 @@ class DroidCanvasViewModel(
                         .putFloat("map_scale_${result.boardId}", result.mapCamera.scale)
                         .putFloat("map_trans_x_${result.boardId}", result.mapCamera.translateX)
                         .putFloat("map_trans_y_${result.boardId}", result.mapCamera.translateY)
+                        .putString("save_file_${result.boardId}", targetName)
                         .apply()
                     selectBoard(result.boardId)
                     openState = OpenState.Opened(boardName)
@@ -657,6 +779,19 @@ class DroidCanvasViewModel(
             } finally {
                 tempFile.delete()
             }
+        }
+    }
+
+    /** Nama tampilan (DISPLAY_NAME) sebuah Uri dokumen; null bila tak ada. */
+    private fun queryDisplayName(uri: Uri): String? {
+        return try {
+            appContext.contentResolver.query(
+                uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) cursor.getString(0) else null
+            }
+        } catch (e: Exception) {
+            null
         }
     }
 

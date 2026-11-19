@@ -219,6 +219,8 @@ import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.SaveAs
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Warning
@@ -4149,9 +4151,10 @@ fun SidebarContent(
             ) { tab ->
                 when (tab) {
                 SidebarTab.BOARD -> {
-                    // Save/Open proyek (Fase 4, T6): hasil Save dibagikan
-                    // lewat FileProvider + ACTION_SEND (cache-path T5 sudah
-                    // ada sejak Fase 3); Open memakai ACTION_OPEN_DOCUMENT.
+                    // Save/Open proyek (Save ulang, 2026-11-19): Save
+                    // menulis ke Download/droidcanvas (MediaStore);
+                    // berbagi hanya lewat tombol Share (salin ke cacheDir
+                    // + FileProvider); Open memakai ACTION_OPEN_DOCUMENT.
                     val context = LocalContext.current
                     val saveState = viewModel.saveState
                     val openState = viewModel.openState
@@ -4163,37 +4166,41 @@ fun SidebarContent(
                     LaunchedEffect(saveState) {
                         when (val state = saveState) {
                             is SaveState.Saved -> {
-                                var shared = false
-                                try {
-                                    val uri = FileProvider.getUriForFile(
-                                        context,
-                                        "${BuildConfig.APPLICATION_ID}.fileprovider",
-                                        state.file
-                                    )
-                                    val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                                        type = "application/zip"
-                                        putExtra(Intent.EXTRA_STREAM, uri)
-                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                if (state.shareAfter) {
+                                    // Share: salin berkas tersimpan ke
+                                    // cacheDir lalu bagikan via FileProvider.
+                                    val file = viewModel.copySavedFileToCache(state.fileName)
+                                    var shared = false
+                                    if (file != null) {
+                                        try {
+                                            val uri = FileProvider.getUriForFile(
+                                                context,
+                                                "${BuildConfig.APPLICATION_ID}.fileprovider",
+                                                file
+                                            )
+                                            val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                                type = "application/zip"
+                                                putExtra(Intent.EXTRA_STREAM, uri)
+                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                            }
+                                            context.startActivity(
+                                                Intent.createChooser(sendIntent, "Bagikan papan")
+                                            )
+                                            shared = true
+                                        } catch (e: Exception) {
+                                            shared = false
+                                        }
                                     }
-                                    context.startActivity(
-                                        Intent.createChooser(sendIntent, "Bagikan papan")
-                                    )
-                                    shared = true
-                                } catch (e: Exception) {
-                                    // Berbagi gagal karena sebab lain —
-                                    // berkas sudah tersimpan.
-                                    shared = false
-                                }
-                                if (shared) {
                                     Toast.makeText(
                                         context,
-                                        "Papan '${state.boardName}' berhasil disimpan",
-                                        Toast.LENGTH_SHORT
+                                        if (shared) "Papan '${state.boardName}' berhasil disimpan dan dibagikan"
+                                        else "Papan '${state.boardName}' tersimpan, berbagi gagal",
+                                        Toast.LENGTH_LONG
                                     ).show()
                                 } else {
                                     Toast.makeText(
                                         context,
-                                        "Papan '${state.boardName}' tersimpan, berbagi gagal",
+                                        "Papan '${state.boardName}' tersimpan di Download/droidcanvas/${state.fileName}",
                                         Toast.LENGTH_LONG
                                     ).show()
                                 }
@@ -4230,6 +4237,53 @@ fun SidebarContent(
                             }
                             else -> Unit
                         }
+                    }
+
+                    // Dialog penamaan Save (Save ulang): muncul saat Save
+                    // pertama kali, Save As, atau Share tanpa target.
+                    val saveNameRequest = viewModel.saveNameDialog
+                    if (saveNameRequest != null) {
+                        var nameDraft by remember(saveNameRequest) {
+                            mutableStateOf(saveNameRequest.defaultName)
+                        }
+                        AlertDialog(
+                            onDismissRequest = { viewModel.dismissSaveNameDialog() },
+                            title = {
+                                Text(
+                                    when (saveNameRequest.mode) {
+                                        SaveNameMode.SAVE -> "Save Project"
+                                        SaveNameMode.SAVE_AS -> "Save As"
+                                        SaveNameMode.SHARE -> "Bagikan Papan"
+                                    }
+                                )
+                            },
+                            text = {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    OutlinedTextField(
+                                        value = nameDraft,
+                                        onValueChange = { nameDraft = it },
+                                        label = { Text("Nama berkas (.dc)") },
+                                        singleLine = true,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    Text(
+                                        text = "Disimpan di Download/droidcanvas",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            },
+                            confirmButton = {
+                                TextButton(
+                                    onClick = { viewModel.confirmSaveName(nameDraft) }
+                                ) { Text("Simpan") }
+                            },
+                            dismissButton = {
+                                TextButton(
+                                    onClick = { viewModel.dismissSaveNameDialog() }
+                                ) { Text("Batal") }
+                            }
+                        )
                     }
 
                     Column(
@@ -4386,7 +4440,8 @@ fun SidebarContent(
                             .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
                     )
 
-                    // Section 2b: Project File (Save/Open — Fase 4, T6).
+                    // Section 2b: Project File (Save/Save As/Open/Share —
+                    // Save ulang, 2026-11-19).
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         SidebarSectionHeader(
                             title = "PROJECT FILE",
@@ -4399,71 +4454,130 @@ fun SidebarContent(
                             enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
                             exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut()
                         ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Button(
-                                    onClick = { viewModel.saveProject() },
-                                    enabled = saveState !is SaveState.Saving && openState !is OpenState.Opening,
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                                    ),
-                                    shape = RoundedCornerShape(8.dp),
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .testTag("saveProjectButton"),
-                                    contentPadding = PaddingValues(0.dp)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    if (saveState is SaveState.Saving) {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(14.dp),
-                                            strokeWidth = 2.dp,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                                        )
-                                    } else {
+                                    Button(
+                                        onClick = { viewModel.requestSave() },
+                                        enabled = saveState !is SaveState.Saving && openState !is OpenState.Opening,
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                        ),
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .testTag("saveProjectButton"),
+                                        contentPadding = PaddingValues(0.dp)
+                                    ) {
+                                        if (saveState is SaveState.Saving) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(14.dp),
+                                                strokeWidth = 2.dp,
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = Icons.Default.Save,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Save Project", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                    Button(
+                                        onClick = { viewModel.requestSaveAs() },
+                                        enabled = saveState !is SaveState.Saving && openState !is OpenState.Opening,
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                                        ),
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .testTag("saveProjectAsButton"),
+                                        contentPadding = PaddingValues(0.dp)
+                                    ) {
                                         Icon(
-                                            imageVector = Icons.Default.Save,
+                                            imageVector = Icons.Default.SaveAs,
                                             contentDescription = null,
                                             modifier = Modifier.size(14.dp)
                                         )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Save As", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     }
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Save Project", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 }
-                                Button(
-                                    onClick = {
-                                        openProjectLauncher.launch(
-                                            arrayOf("application/zip", "application/octet-stream")
-                                        )
-                                    },
-                                    enabled = openState !is OpenState.Opening && saveState !is SaveState.Saving,
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                                    ),
-                                    shape = RoundedCornerShape(8.dp),
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .testTag("openProjectButton"),
-                                    contentPadding = PaddingValues(0.dp)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    if (openState is OpenState.Opening) {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(14.dp),
-                                            strokeWidth = 2.dp,
-                                            color = MaterialTheme.colorScheme.onSecondaryContainer
-                                        )
-                                    } else {
-                                        Icon(
-                                            imageVector = Icons.Default.FolderOpen,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(14.dp)
-                                        )
+                                    Button(
+                                        onClick = {
+                                            openProjectLauncher.launch(
+                                                arrayOf("application/zip", "application/octet-stream")
+                                            )
+                                        },
+                                        enabled = openState !is OpenState.Opening && saveState !is SaveState.Saving,
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                                        ),
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .testTag("openProjectButton"),
+                                        contentPadding = PaddingValues(0.dp)
+                                    ) {
+                                        if (openState is OpenState.Opening) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(14.dp),
+                                                strokeWidth = 2.dp,
+                                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = Icons.Default.FolderOpen,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Open Project", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     }
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Open Project", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Button(
+                                        onClick = { viewModel.requestShare() },
+                                        enabled = saveState !is SaveState.Saving && openState !is OpenState.Opening,
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                            contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                                        ),
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .testTag("shareProjectButton"),
+                                        contentPadding = PaddingValues(0.dp)
+                                    ) {
+                                        if (saveState is SaveState.Saving) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(14.dp),
+                                                strokeWidth = 2.dp,
+                                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = Icons.Default.Share,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Share", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
                                 }
                             }
                         }

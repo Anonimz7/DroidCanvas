@@ -174,16 +174,22 @@ Format + rancangan: `designs/save-open.md`, skema formal
   `saveDrawingStrokes`). Mengembalikan `OpenedProject(boardId, boardCamera,
   mapCamera)`; TIDAK menyentuh SharedPreferences. Gagal = rollback + berkas
   staged dihapus.
-- **ViewModel:** `saveProject()` menulis ZIP ke `cacheDir` + `saveState`
-  (`SaveState`); `openProject(uri)` menyalin URI ke temp
+- **ViewModel (Save ulang, 2026-11-19):** `requestSave()` / `requestSaveAs()` /
+  `requestShare()` + dialog penamaan (`saveNameDialog`); `saveProject(nama,
+  shareAfter)` menulis ZIP ke temp `cacheDir` lalu ke
+  `Download/droidcanvas` lewat `ProjectFileStore` (MediaStore API 29+,
+  File API di bawahnya; nama sama = timpa) + `saveState` (`SaveState`:
+  `Saved` membawa nama berkas + `shareAfter`); target per papan di prefs
+  (`save_file_<boardId>`). `openProject(uri)` menyalin URI ke temp
   `open-<uuid>.dc` di `cacheDir` (dihapus di `finally`), memanggil
-  Opener, menulis kedua kamera ke prefs **sebelum** `selectBoard` (yang
-  membaca kamera dari prefs), lalu `openState` (`OpenState`). ViewModel
-  menerima objek `DroidCanvasDatabase` lewat factory (ADR-016) — repository
-  tidak diubah. UI: tombol Save/Open di tab BOARD, seksi PROJECT FILE; Open
-  lewat `ACTION_OPEN_DOCUMENT` (MIME `application/zip` +
-  `application/octet-stream`); berbagi Save lewat `FileProvider`
-  (`cache-path project_cache`, T5).
+  Opener, menulis kedua kamera + target (dari DISPLAY_NAME berkas asal)
+  ke prefs **sebelum** `selectBoard` (yang membaca kamera dari prefs),
+  lalu `openState` (`OpenState`). ViewModel menerima objek
+  `DroidCanvasDatabase` lewat factory (ADR-016) — repository tidak
+  diubah. UI: tombol Save/Save As/Open/Share di tab BOARD, seksi PROJECT
+  FILE; Open lewat `ACTION_OPEN_DOCUMENT` (MIME `application/zip` +
+  `application/octet-stream`); berbagi hanya lewat Share (salinan
+  `cacheDir` + `FileProvider`, `cache-path project_cache`, T5).
 - **Test:** `ProjectSaverTest` 5/5 + `ProjectOpenerTest` 7/7 terbukti hijau
   (round-trip, 5 penolakan, pra-Map); 2 test baru T7 (buka-dua-kali) + T8
   (papan 20 gambar) ditambah 2026-11-19, belum dieksekusi —
