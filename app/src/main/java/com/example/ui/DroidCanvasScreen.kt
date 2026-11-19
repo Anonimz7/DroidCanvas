@@ -4244,6 +4244,7 @@ fun SidebarContent(
     val activeBoardId by viewModel.currentBoardId.collectAsState()
     val canvasItems by viewModel.canvasItems.collectAsState()
     val drawingStrokes by viewModel.drawingStrokes.collectAsState()
+    val todos by viewModel.todos.collectAsState()
     val isDrawModeEnabled = viewModel.isDrawModeEnabled
     val currentWidth = viewModel.drawingWidth
     val currentColor = viewModel.drawingColor
@@ -4259,6 +4260,13 @@ fun SidebarContent(
     var isLayersExpanded by remember { mutableStateOf(true) }
     var isDrawingExpanded by remember { mutableStateOf(true) }
     var isSettingsExpanded by remember { mutableStateOf(true) }
+    // Todo (langkah 6, T3): lipat/buka seksi TODO (K10) + status dialog
+    // tambah todo (konfirmasi + isi teks).
+    var isTodoExpanded by remember { mutableStateOf(true) }
+    var todoConfirm by remember { mutableStateOf(false) }
+    var todoTextId by remember { mutableStateOf<Long?>(null) }
+    var todoTextDraft by remember { mutableStateOf("") }
+    val todoScope = rememberCoroutineScope()
 
     // Active Tab State
     var selectedTab by remember { mutableStateOf(SidebarTab.BOARD) }
@@ -5434,6 +5442,205 @@ fun SidebarContent(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                 )
                             }
+                        }
+
+                        // Section 7: Todo (langkah 6, T3) — sibling seksi
+                        // DRAWING TOOLS, DI LUAR gate draw mode (K9): pemilih
+                        // Todo bekerja walau draw mode mati.
+                        SidebarSectionHeader(
+                            title = "TODO",
+                            isExpanded = isTodoExpanded,
+                            onToggle = { isTodoExpanded = !isTodoExpanded }
+                        )
+
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = isTodoExpanded,
+                            enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
+                            exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut()
+                        ) {
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                // Demo desain todo (K3): pratinjau statis
+                                // saja — bukan template yang bisa dipakai.
+                                // Hanya blank todo yang disediakan.
+                                Card(
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(12.dp),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.CheckBoxOutlineBlank,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                            Text(
+                                                text = "Contoh todo",
+                                                style = MaterialTheme.typography.bodyMedium
+                                            )
+                                        }
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.CheckBox,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                            Text(
+                                                text = "Contoh selesai",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough,
+                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                            )
+                                        }
+                                        Text(
+                                            text = "Demo — hanya Blank Todo di bawah yang bisa dipakai",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                        )
+                                    }
+                                }
+
+                                // Blank Todo — satu-satunya entri yang bisa
+                                // dipakai (K3). Ketuk → dialog konfirmasi (K5).
+                                Card(
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                                    ),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { todoConfirm = true }
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Add,
+                                            contentDescription = "Add blank todo",
+                                            tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                        Column {
+                                            Text(
+                                                text = "Blank Todo",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                            )
+                                            Text(
+                                                text = "Todo kosong — isi manual",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Dialog konfirmasi tambah todo (K5): muncul setiap
+                        // kali Blank Todo diketuk; "ya" → sisip di tengah
+                        // tampilan, lalu buka dialog isi teks.
+                        if (todoConfirm) {
+                            AlertDialog(
+                                onDismissRequest = { todoConfirm = false },
+                                title = {
+                                    Text(
+                                        text = "Tambah todo?",
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                },
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                text = {
+                                    Text("Todo kosong akan muncul di tengah tampilan. Isi teksnya setelah itu.")
+                                },
+                                confirmButton = {
+                                    Button(
+                                        onClick = {
+                                            todoConfirm = false
+                                            todoScope.launch {
+                                                val id = viewModel.addTodoAtCenter("", viewportWidth, viewportHeight)
+                                                if (id != null) {
+                                                    todoTextId = id
+                                                    todoTextDraft = ""
+                                                }
+                                            }
+                                        },
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) {
+                                        Text("Tambah", fontWeight = FontWeight.Bold)
+                                    }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = { todoConfirm = false }) {
+                                        Text("Batal")
+                                    }
+                                }
+                            )
+                        }
+
+                        // Dialog isi teks todo (pola dialog note): dibuka
+                        // langsung setelah todo disisipkan; simpan kosong
+                        // dibolehkan (todo kosong, diisi belakangan).
+                        val todoTextTodo = todos.find { it.id.toLong() == todoTextId }
+                        if (todoTextTodo != null) {
+                            AlertDialog(
+                                onDismissRequest = { todoTextId = null },
+                                title = {
+                                    Text(
+                                        text = "Add todo",
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                },
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                text = {
+                                    Column(modifier = Modifier.padding(top = 8.dp)) {
+                                        OutlinedTextField(
+                                            value = todoTextDraft,
+                                            onValueChange = { todoTextDraft = it },
+                                            label = { Text("Todo") },
+                                            placeholder = { Text("Tulis todo...") },
+                                            minLines = 3,
+                                            maxLines = 5,
+                                            shape = RoundedCornerShape(12.dp),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .testTag("todo_text_input")
+                                        )
+                                    }
+                                },
+                                confirmButton = {
+                                    Button(
+                                        onClick = {
+                                            viewModel.updateTodo(todoTextTodo, todoTextDraft)
+                                            todoTextId = null
+                                        },
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) {
+                                        Text("Save", fontWeight = FontWeight.Bold)
+                                    }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = { todoTextId = null }) {
+                                        Text("Cancel")
+                                    }
+                                }
+                            )
                         }
                     }
                 }

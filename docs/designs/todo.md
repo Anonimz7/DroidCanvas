@@ -195,7 +195,7 @@ kolom `note` tidak bisa menampung itu.
 |---|---|---|
 | T1 | Data: entitas `Todo` + migrasi 10→11 + `TodoDao` + repository (parameter ke-3) | **Selesai (kode) 2026-11-19:** remote `5f6db69`; build sukses (run 44491159914); `data-model.md` diperbarui (DB v11) |
 | T2 | ViewModel: `todos` Flow + `addTodo`/`updateTodo`/`toggleTodo`/`deleteTodo` + posisi tengah tampilan | **Selesai (kode) 2026-11-19:** `todos` Flow (pola `edges`), `updateTodo`/`toggleTodo`/`deleteTodo` fire-and-forget tanpa snapshot undo (T7), `addTodoAtCenter` (suspend, kembalikan id) mengisi pusat Board + pusat Map sekaligus; posisi = titik tengah kartu |
-| T3 | UI tambah: seksi TODO di tab Paint (di bawah DRAWING TOOLS) + daftar template demo + dialog konfirmasi + dialog isi teks | Belum |
+| T3 | UI tambah: seksi TODO di tab Paint (di bawah DRAWING TOOLS) + daftar template demo + dialog konfirmasi + dialog isi teks | **Selesai (kode) 2026-11-19:** seksi TODO (K10: lipat/buka, `isTodoExpanded`) di luar gate draw mode (K9); kartu demo statis + entri Blank Todo → dialog konfirmasi → `addTodoAtCenter` → dialog isi teks (`todo_text_input`, simpan kosong dibolehkan) |
 | T4 | Board: kartu todo (centang + teks) + geser + long-press | Belum |
 | T5 | Map: node todo + port + geser + edge ke/dari todo (**butuh keputusan P5 dulu**) | Belum |
 | T6 | Save/Open: `todos[]` di manifest + Saver + Opener (satu transaksi) | Belum |
