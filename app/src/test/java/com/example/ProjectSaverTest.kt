@@ -6,6 +6,8 @@ import com.example.data.CanvasItem
 import com.example.data.Edge
 import com.example.data.ProjectSaver
 import com.example.data.SavedStroke
+import com.example.data.Todo
+import com.example.data.TodoItem
 import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
@@ -305,6 +307,176 @@ class ProjectSaverTest {
                     mapCamera = mapCamera, appVersion = "0.2.0", outputFile = outputFile
                 )
             }
+            assertFalse("tidak boleh ada arsip setengah jadi", outputFile.exists())
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // T6: todo ikut tersimpan
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `round-trip todo - judul, baris, posisi dan garis todo kembali identik`() {
+        val tempDir = Files.createTempDirectory("saver-todo").toFile()
+        try {
+            val fullBytes = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 1, 2, 3)
+            val thumbBytes = byteArrayOf(9, 8, 7)
+            val full = writeBytes(tempDir, "ref_full_1.jpg", fullBytes)
+            val thumb = writeBytes(tempDir, "ref_thumb_1.jpg", thumbBytes)
+            val board = Board(id = 7, name = "Papan Uji", createdAt = 1795054800000L)
+            val item = CanvasItem(
+                id = 11, boardId = 7,
+                fullPath = full.absolutePath, thumbPath = thumb.absolutePath,
+                posX = 120f, posY = 80f, width = 320f, height = 240f,
+                scale = 1f, rotation = 0f, zIndex = 0,
+                isPinned = false, flipHorizontal = false, flipVertical = false,
+                isGrayscale = false, isValuesEnabled = false,
+                simplicity = 0, stopsCount = 3, stopsJson = "",
+                mapX = 40f, mapY = 24f, note = ""
+            )
+            val todo1 = Todo(
+                id = 1, boardId = 7, title = "Belanja",
+                posX = 120f, posY = 400f, mapX = 40f, mapY = 500f,
+                createdAt = 1795054800000L
+            )
+            val todo2 = Todo(
+                id = 2, boardId = 7, title = "Tugas",
+                posX = 400f, posY = 400f, mapX = 300f, mapY = 500f,
+                createdAt = 1795054801000L
+            )
+            val rows = listOf(
+                TodoItem(id = 1, todoId = 1, text = "Beli cat", done = false, createdAt = 1795054800000L),
+                TodoItem(id = 2, todoId = 1, text = "Beli kuas", done = true, createdAt = 1795054801000L),
+                TodoItem(id = 3, todoId = 2, text = "Kirim laporan", done = false, createdAt = 1795054802000L)
+            )
+            val edgeItemTodo = Edge(
+                id = 5, boardId = 7, fromItemId = 11, toItemId = 1,
+                type = "REFERENCES", fromKind = "ITEM", toKind = "TODO"
+            )
+            val edgeTodoTodo = Edge(
+                id = 6, boardId = 7, fromItemId = 1, toItemId = 2,
+                type = "RELATED_TO", fromKind = "TODO", toKind = "TODO"
+            )
+
+            val outputFile = File(tempDir, "papan-todo.dc")
+            ProjectSaver.save(
+                board = board, items = listOf(item),
+                edges = listOf(edgeItemTodo, edgeTodoTodo),
+                todos = listOf(todo1, todo2), todoItems = rows,
+                strokes = emptyList(), boardCamera = boardCamera, mapCamera = mapCamera,
+                appVersion = "0.2.0", outputFile = outputFile
+            )
+
+            ZipFile(outputFile).use { zip ->
+                val manifest = JSONObject(
+                    zip.getInputStream(zip.getEntry("manifest.json"))
+                        .bufferedReader(Charsets.UTF_8).readText()
+                )
+
+                // --- todos: judul + posisi + baris bersarang ---
+                val todosJson = manifest.getJSONArray("todos")
+                assertEquals(2, todosJson.length())
+                val t1 = todosJson.getJSONObject(0)
+                val t2 = todosJson.getJSONObject(1)
+                assertEquals("Belanja", t1.getString("title"))
+                assertEquals(120f, floatOf(t1, "posX"), 0.001f)
+                assertEquals(400f, floatOf(t1, "posY"), 0.001f)
+                assertEquals(40f, floatOf(t1, "mapX"), 0.001f)
+                assertEquals(500f, floatOf(t1, "mapY"), 0.001f)
+                assertEquals(1795054800000L, t1.getLong("createdAt"))
+                val rows1 = t1.getJSONArray("items")
+                assertEquals(2, rows1.length())
+                assertEquals("Beli cat", rows1.getJSONObject(0).getString("text"))
+                assertFalse(rows1.getJSONObject(0).getBoolean("done"))
+                assertEquals("Beli kuas", rows1.getJSONObject(1).getString("text"))
+                assertTrue(rows1.getJSONObject(1).getBoolean("done"))
+                assertEquals(1795054801000L, rows1.getJSONObject(1).getLong("createdAt"))
+                assertEquals("Tugas", t2.getString("title"))
+                assertEquals(1, t2.getJSONArray("items").length())
+                assertEquals("Kirim laporan", t2.getJSONArray("items").getJSONObject(0).getString("text"))
+
+                // --- uuid todo unik + beda dari uuid item ---
+                val itemUuid = manifest.getJSONArray("items").getJSONObject(0).getString("uuid")
+                val uuidT1 = t1.getString("uuid")
+                val uuidT2 = t2.getString("uuid")
+                assertTrue(uuidT1.isNotBlank())
+                assertNotEquals("uuid tiap todo harus beda", uuidT1, uuidT2)
+                assertNotEquals("uuid todo harus beda dari uuid item", itemUuid, uuidT1)
+
+                // --- edges: ujung di-resolve per kind + kind tertulis ---
+                val edgesJson = manifest.getJSONArray("edges")
+                assertEquals(2, edgesJson.length())
+                val e1 = edgesJson.getJSONObject(0)
+                assertEquals(itemUuid, e1.getString("from"))
+                assertEquals(uuidT1, e1.getString("to"))
+                assertEquals("REFERENCES", e1.getString("type"))
+                assertEquals("ITEM", e1.getString("fromKind"))
+                assertEquals("TODO", e1.getString("toKind"))
+                val e2 = edgesJson.getJSONObject(1)
+                assertEquals(uuidT1, e2.getString("from"))
+                assertEquals(uuidT2, e2.getString("to"))
+                assertEquals("RELATED_TO", e2.getString("type"))
+                assertEquals("TODO", e2.getString("fromKind"))
+                assertEquals("TODO", e2.getString("toKind"))
+            }
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `edge ke todo yang tidak ada ditolak sebelum menulis`() {
+        val tempDir = Files.createTempDirectory("saver-bad-todo-edge").toFile()
+        try {
+            val board = Board(id = 9, name = "Papan", createdAt = 0L)
+            val outputFile = File(tempDir, "gagal.dc")
+            val ex = assertThrows(IllegalArgumentException::class.java) {
+                ProjectSaver.save(
+                    board = board, items = emptyList(),
+                    edges = listOf(
+                        Edge(id = 1, boardId = 9, fromItemId = 1, toItemId = 99,
+                            type = "PLAIN", fromKind = "TODO", toKind = "TODO")
+                    ),
+                    todos = listOf(Todo(id = 1, boardId = 9, title = "Satu")),
+                    todoItems = emptyList(),
+                    strokes = emptyList(), boardCamera = boardCamera,
+                    mapCamera = mapCamera, appVersion = "0.2.0", outputFile = outputFile
+                )
+            }
+            assertTrue(ex.message!!.contains("99"))
+            assertFalse("tidak boleh ada arsip setengah jadi", outputFile.exists())
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `kind edge tak dikenal ditolak sebelum menulis`() {
+        val tempDir = Files.createTempDirectory("saver-bad-kind").toFile()
+        try {
+            val full = writeBytes(tempDir, "ref_full_1.jpg", byteArrayOf(1, 2, 3))
+            val thumb = writeBytes(tempDir, "ref_thumb_1.jpg", byteArrayOf(4, 5))
+            val item = CanvasItem(
+                id = 1, boardId = 9,
+                fullPath = full.absolutePath, thumbPath = thumb.absolutePath,
+                posX = 0f, posY = 0f, width = 1f, height = 1f
+            )
+            val board = Board(id = 9, name = "Papan", createdAt = 0L)
+            val outputFile = File(tempDir, "gagal.dc")
+            val ex = assertThrows(IllegalArgumentException::class.java) {
+                ProjectSaver.save(
+                    board = board, items = listOf(item),
+                    edges = listOf(
+                        Edge(id = 1, boardId = 9, fromItemId = 1, toItemId = 1,
+                            type = "PLAIN", fromKind = "BUKAN", toKind = "ITEM")
+                    ),
+                    strokes = emptyList(), boardCamera = boardCamera,
+                    mapCamera = mapCamera, appVersion = "0.2.0", outputFile = outputFile
+                )
+            }
+            assertTrue(ex.message!!.contains("BUKAN"))
             assertFalse("tidak boleh ada arsip setengah jadi", outputFile.exists())
         } finally {
             tempDir.deleteRecursively()

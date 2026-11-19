@@ -43,10 +43,11 @@ nama-papan.dc
 | `board` | object | Ya | §3. |
 | `items` | array | Ya | §4. Boleh kosong (papan tanpa gambar). |
 | `edges` | array | Tidak (default `[]`) | §5. Tidak ada = tanpa edge (arsip pra-Map). |
-| `strokes` | array | Tidak (default `[]`) | §6. Tidak ada = tanpa goresan. |
+| `todos` | array | Tidak (default `[]`) | §6. Tidak ada = tanpa todo (arsip pra-T6). |
+| `strokes` | array | Tidak (default `[]`) | §7. Tidak ada = tanpa goresan. |
 
-Penulis (Save) selalu menulis keenam kunci; pembaca (Open) mentolerir
-ketiadaan `edges`/`strokes`.
+Penulis (Save) selalu menulis ketujuh kunci; pembaca (Open) mentolerir
+ketiadaan `edges`/`todos`/`strokes`.
 
 ## 3. `board`
 
@@ -83,14 +84,29 @@ ketiadaan `edges`/`strokes`.
 
 | Field | Tipe | Wajib | Keterangan |
 |---|---|---|---|
-| `from`, `to` | string | Ya | `uuid` item ujung garis. Keduanya harus merujuk ke item yang ada di manifest. |
+| `from`, `to` | string | Ya | `uuid` ujung garis — item atau todo, sesuai `fromKind`/`toKind`. Keduanya harus merujuk ke entri yang ada di manifest. |
 | `type` | string | Ya | Nama `ConnectionType`, tepat satu dari 8: `RELATED_TO`, `INSPIRED_BY`, `DERIVED_FROM`, `ALTERNATIVE_TO`, `SUPPORTS`, `USED_IN`, `REFERENCES`, `PLAIN`. |
+| `fromKind`, `toKind` | string | Tidak (default `ITEM`) | Jenis ujung: `ITEM` (merujuk `items[]`) atau `TODO` (merujuk `todos[]`). Arsip lama tanpa kind dibaca sebagai ITEM–ITEM. |
 
 Garis tidak berarah (tanpa panah, K4 Map); `from`/`to` hanya menamai
 kedua ujungnya. Duplikasi edge (pasangan + type sama) tidak ditolak
 skema ini — penolakan duplikat adalah aturan UI saat membuat garis.
 
-## 6. `strokes[]` — goresan
+## 6. `todos[]` — todo berbasis kanvas (T6, K11)
+
+| Field | Tipe | Wajib | Keterangan |
+|---|---|---|---|
+| `uuid` | string | Ya | Kunci stabil di dalam arsip; kunci join edge + baris. Harus unik antar todo. Todo tidak punya berkas gambar. |
+| `title` | string | Tidak (default `""`) | Judul todo (kepala, tidak bisa dicentang). Kosong = "Todo kosong" di UI. |
+| `posX`, `posY` | number | Tidak (default `0`) | Posisi kartu di kanvas Board. |
+| `mapX`, `mapY` | number | Tidak (default `0`) | Posisi node di Map. `0, 0` = belum diposisikan (sentinel grid Map). |
+| `createdAt` | integer | Tidak (default `0`) | Epoch ms; menentukan urutan tampil todo. |
+| `items` | array | Tidak (default `[]`) | Baris di bawah judul, urutan = urutan tampil. Tiap baris: `text` (string, default `""`), `done` (boolean, default `false`), `createdAt` (integer, default `0`). |
+
+`todos[]` sendiri opsional di tingkat atas (absen = tanpa todo).
+Posisi todo mengikuti pola item: posisi Board + posisi Map dipisah.
+
+## 7. `strokes[]` — goresan
 
 | Field | Tipe | Wajib | Keterangan |
 |---|---|---|---|
@@ -103,7 +119,7 @@ Goresan ditulis sebagai JSON di manifest — format teks
 `drawing_strokes_<id>.txt` tetap dipakai internal, format arsip tidak
 mewarisi utangnya (G6).
 
-## 7. Aturan validasi saat Open (K6)
+## 8. Aturan validasi saat Open (K6)
 
 `ProjectOpener` menolak arsip (tanpa papan setengah jadi) bila:
 
@@ -114,19 +130,24 @@ mewarisi utangnya (G6).
 5. `uuid` item duplikat.
 6. `fullFile`/`thumbFile` tidak ada di dalam arsip, stem-nya bukan
    `uuid` item, atau path-nya absolut / mengandung `..`.
-7. Ujung `edges` merujuk ke `uuid` yang tidak ada di manifest, atau
-   `type` bukan salah satu dari 8 nama di §5.
+7. Ujung `edges` merujuk ke `uuid` yang tidak ada di manifest (per
+   kind: ITEM → `items[]`, TODO → `todos[]`), `fromKind`/`toKind`
+   bukan `ITEM`/`TODO`, atau `type` bukan salah satu dari 8 nama di §5.
 8. `points` goresan kosong atau berisi bukan pasangan angka.
+9. `uuid` todo duplikat, atau baris todo (`text`/`done`/`createdAt`)
+   tipenya salah.
 
 Pesan gagal harus menyebut sebabnya, bukan "terjadi kesalahan".
 
-## 8. Kompatibilitas
+## 9. Kompatibilitas
 
 - **Arsip lama (pra-Map)** — tanpa `edges`/`mapX`/`mapY`/`note`/
   `mapCamera` — terbuka bersih: tanpa edge, `mapX`/`mapY` = 0,
   `note` = `""`, `mapCamera` default. Semua field Map opsional;
   `formatVersion` **tetap 1** (penambahan field opsional bukan versi
   format baru; K6 hanya menolak `formatVersion` yang tak dikenal).
+- **Arsip pra-T6** — tanpa `todos[]` — terbuka bersih (tanpa todo);
+  edge tanpa `fromKind`/`toKind` dibaca sebagai ITEM–ITEM.
 - **Arsip baru dibuka aplikasi lama (pra-Map)** — kunci JSON yang tak
   dikenal diabaikan parser; papan terbuka tanpa data Map.
 - Perubahan yang **menaikkan** `formatVersion` (bukan 1) hanya bila ada

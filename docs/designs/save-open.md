@@ -135,16 +135,18 @@ Skema formal + contoh lengkap: [`designs/manifest-schema.md`](manifest-schema.md
     `formatVersion` yang tak dikenal). Sebaliknya, arsip baru yang
     dibuka aplikasi lama (pra-Map): kunci JSON yang tak dikenal
     diabaikan parser — papan terbuka tanpa data Map.
-- Data Todo (T6, belum dibangun — bentuk diputuskan K11, 2026-11-19):
-  - `todos[]` opsional: tiap entri `title`, `posX`/`posY`, `mapX`/`mapY`,
-    `createdAt`, + `items[]` bersarang (tiap baris: `text`, `done`,
-    `createdAt`); todo tidak punya berkas gambar. Todo butuh `uuid`
-    sendiri (seperti item) sebagai kunci join edge + baris.
-  - Edge manifest bertambah `fromKind`/`toKind` (`ITEM`/`TODO`, default
-    `ITEM` bila absen — arsip lama tetap bisa dibuka); validasi Open:
-    ujung TODO harus merujuk ke todo yang ada di `todos[]`, kind harus
-    dikenal. Hari ini Saver T5 **melewati** garis ke/dari todo (manifest
-    belum punya `todos[]`) — ditutup T6.
+- Data Todo (T6, SELESAI 2026-11-19):
+  - `todos[]` opsional: tiap entri `uuid`, `title`, `posX`/`posY`,
+    `mapX`/`mapY`, `createdAt`, + `items[]` bersarang (tiap baris:
+    `text`, `done`, `createdAt`); todo tidak punya berkas gambar.
+    `uuid` per todo (baru tiap Save, seperti item) sebagai kunci join
+    edge + baris.
+  - Edge manifest menulis `fromKind`/`toKind` (`ITEM`/`TODO`) selalu;
+    saat dibaca, kind absen = `ITEM` (arsip lama tetap bisa dibuka);
+    validasi Open: ujung TODO harus merujuk ke todo yang ada di
+    `todos[]`, kind harus dikenal. Saver menulis garis todo (dulu
+    dilewati di T5); Opener insert todo + baris + edge dalam transaksi
+    yang sama dengan Board + items.
   - Kompatibilitas mundur: arsip tanpa `todos[]` terbuka bersih (tanpa
     todo); `formatVersion` tetap 1.
 - `isGrayscale` dicantumkan sekarang supaya format tidak berubah saat
@@ -257,7 +259,7 @@ Skema formal + contoh lengkap: [`designs/manifest-schema.md`](manifest-schema.md
 
 **Baca dulu:**
 
-- `manifest-schema.md` §7 (8 aturan validasi) + §8 (kompatibilitas pra-Map)
+- `manifest-schema.md` §8 (9 aturan validasi) + §9 (kompatibilitas pra-Map/pra-T6)
 - `save-open.md` §4.2 (alur Open) + §4.3 (berbagi berkas)
 - `ProjectSaver.kt` — format manifest yang ditulis; pakai ulang
   `ProjectSaver.FORMAT_VERSION` (jangan duplikasi konstanta)
@@ -287,7 +289,7 @@ Skema formal + contoh lengkap: [`designs/manifest-schema.md`](manifest-schema.md
 
 **Aturan keras:**
 
-1. **Validasi dulu, sebelum menyalin apa pun** (skema §7): ZIP valid;
+1. **Validasi dulu, sebelum menyalin apa pun** (skema §8): ZIP valid;
    `manifest.json` ada + JSON valid; `formatVersion` == 1 — bila bukan,
    tolak dengan pesan yang menyebut versi yang ditemukan (K6); field wajib
    ada + tipe benar; `uuid` item unik; tiap `fullFile`/`thumbFile` ada di

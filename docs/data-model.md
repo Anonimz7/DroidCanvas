@@ -200,16 +200,17 @@ Format + rancangan: `designs/save-open.md`, skema formal
 
 - **Arsip:** ZIP berisi `manifest.json` di root +
   `images/<uuid>_full.<ext>` + `images/<uuid>_thumb.jpg` + (opsional)
-  `edges`, `strokes`. `formatVersion` harus 1; kolom mati `Board` tidak ikut
+  `edges`, `todos`, `strokes`. `formatVersion` harus 1; kolom mati `Board` tidak ikut
   (K1); satu berkas = satu papan (K2); Open selalu papan baru (K4); values
   study dihitung ulang saat Open (K5) — bitmap values TIDAK disimpan di arsip.
-- **`ProjectSaver`** (`data`, kelas murni): Board + items + edges + goresan →
+- **`ProjectSaver`** (`data`, kelas murni): Board + items + edges + todos + goresan →
   ZIP. Satu UUID baru per item per Save, dipakai sebagai stem nama berkas
-  arsip. Gagal sebelum menulis apa pun bila edge merujuk item yang tidak ada
-  / type tak dikenal / gambar sumber hilang.
-- **`ProjectOpener`** (`data`, kelas murni): validasi 8 aturan skema → salin
+  arsip; satu UUID baru per todo per Save sebagai kunci join edge + baris.
+  Gagal sebelum menulis apa pun bila edge merujuk item/todo yang tidak ada
+  / kind tak dikenal / type tak dikenal / gambar sumber hilang.
+- **`ProjectOpener`** (`data`, kelas murni): validasi 9 aturan skema → salin
   gambar ke `filesDir` dengan nama `ref_full_<uuid baru>.<ext>` /
-  `ref_thumb_<uuid baru>.jpg` → insert Board + items + edges dalam **satu
+  `ref_thumb_<uuid baru>.jpg` → insert Board + items + todos + edges dalam **satu
   transaksi Room** (`database.withTransaction`) → tulis
   `drawing_strokes_<newBoardId>.txt` (format teks sama seperti
   `saveDrawingStrokes`). Mengembalikan `OpenedProject(boardId, boardCamera,

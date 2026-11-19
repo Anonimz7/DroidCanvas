@@ -35,10 +35,10 @@ data class OpenedProject(
  * Save/Open project file — Opener (Fase 3, T4).
  *
  * Membuka arsip `.dc` yang ditulis [ProjectSaver]: validasi penuh
- * → salin gambar ke `filesDir` → insert Board + items + edges dalam SATU
- * transaksi Room → tulis `drawing_strokes_<boardId>.txt`. Format manifest v1
- * mengikuti `docs/designs/manifest-schema.md`; alur mengikuti
- * `docs/designs/save-open.md` §4.2 (K1–K6, ADR-015).
+ * → salin gambar ke `filesDir` → insert Board + items + todos + edges
+ * dalam SATU transaksi Room → tulis `drawing_strokes_<boardId>.txt`.
+ * Format manifest v1 mengikuti `docs/designs/manifest-schema.md`; alur
+ * mengikuti `docs/designs/save-open.md` §4.2 (K1–K6, ADR-015).
  *
  * Keputusan implementasi (panduan Fase 3 §5.1, aturan 2 — "putuskan
  * caranya"): kelas ini menerima objek [DroidCanvasDatabase] dan memakai
@@ -53,7 +53,7 @@ data class OpenedProject(
  * (sama seperti Saver). Fungsi utama [open] `suspend`; I/O berkas di
  * [Dispatchers.IO].
  *
- * Aturan yang ditegakkan (skema §7 — 8 aturan validasi, K6):
+ * Aturan yang ditegakkan (skema §8 — 9 aturan validasi, K6):
  * 1. ZIP valid + `manifest.json` ada di root arsip.
  * 2. `manifest.json` JSON valid.
  * 3. `formatVersion` == [ProjectSaver.FORMAT_VERSION] (konstanta dipakai
@@ -63,15 +63,21 @@ data class OpenedProject(
  * 6. `fullFile`/`thumbFile` ada di arsip, stem-nya `uuid` item
  *    (`<uuid>_full.<ekstensi>`, `<uuid>_thumb.<ekstensi>`), path relatif
  *    (nilai yang diawali `/` atau mengandung `..` ditolak).
- * 7. Tiap edge merujuk `uuid` yang ada + `type` salah satu dari 8
- *    [ConnectionType].
+ * 7. Tiap edge merujuk `uuid` yang ada (per kind: ITEM → `items[]`,
+ *    TODO → `todos[]`), `fromKind`/`toKind` salah satu dari `ITEM`/
+ *    `TODO`, + `type` salah satu dari 8 [ConnectionType].
  * 8. `points` goresan tidak kosong dan tiap elemen pasangan angka [x, y].
+ * 9. Todo (T6): `uuid` unik + tidak kosong; tiap baris `text`/`done`/
+ *    `createdAt` bertipe benar.
  *
- * Kompatibilitas pra-Map (skema §8, aturan keras 4): arsip tanpa
+ * Kompatibilitas pra-Map (skema §9, aturan keras 4): arsip tanpa
  * `edges`/`mapX`/`mapY`/`note`/`mapCamera` terbuka bersih — tanpa edge,
  * `mapX`/`mapY` = 0, `note` = `""`, `mapCamera` default 1/0/0. Field
- * `mapCamera` yang hilang BUKAN galat. Board baru dibuat dengan `name` +
- * `createdAt` dari manifest; kolom mati `Board` dibiarkan default (K1).
+ * `mapCamera` yang hilang BUKAN galat. Kompatibilitas pra-T6: arsip
+ * tanpa `todos[]` terbuka bersih (tanpa todo); edge tanpa
+ * `fromKind`/`toKind` dibaca sebagai ITEM–ITEM. Board baru dibuat
+ * dengan `name` + `createdAt` dari manifest; kolom mati `Board`
+ * dibiarkan default (K1).
  *
  * Aturan keras 3 (id selalu baru): `boardId` + `id` item dari
  * `autoGenerate`; nama berkas salinan memakai UUID baru
@@ -199,6 +205,14 @@ object ProjectOpener {
             items.add(readItem(reqObject(itemsJson, i, "items[$i]"), "items[$i]", uuids, zip))
         }
 
+        // Todo (T6, K11): opsional — arsip tanpa todos[] = tanpa todo.
+        val todosJson = optArray(manifest, "todos", "todos") ?: JSONArray()
+        val todoUuids = HashSet<String>(todosJson.length())
+        val todos = ArrayList<ParsedTodo>(todosJson.length())
+        for (i in 0 until todosJson.length()) {
+            todos.add(readTodo(reqObject(todosJson, i, "todos[$i]"), "todos[$i]", todoUuids))
+        }
+
         // Kompatibilitas pra-Map: edges/strokes hilang = kosong.
         val edgesJson = optArray(manifest, "edges", "edges") ?: JSONArray()
         val edges = ArrayList<ParsedEdge>(edgesJson.length())
@@ -208,15 +222,31 @@ object ProjectOpener {
             val from = reqString(edgeJson, "from", "$path.from")
             val to = reqString(edgeJson, "to", "$path.to")
             val type = reqString(edgeJson, "type", "$path.type")
-            // Aturan 7: kedua ujung harus merujuk uuid item yang ada.
-            if (!uuids.contains(from)) {
+            // Aturan 7 (T6): kind opsional, default ITEM (arsip lama);
+            // harus ITEM atau TODO.
+            val fromKind = optString(edgeJson, "fromKind", "$path.fromKind", EdgeEndpointKind.ITEM)
+            val toKind = optString(edgeJson, "toKind", "$path.toKind", EdgeEndpointKind.ITEM)
+            if (fromKind != EdgeEndpointKind.ITEM && fromKind != EdgeEndpointKind.TODO) {
                 throw ProjectOpenException(
-                    "Edge $path merujuk uuid 'from' yang tidak ada di manifest: '$from'"
+                    "Edge $path punya fromKind tak dikenal: '$fromKind' (harus ITEM atau TODO)"
                 )
             }
-            if (!uuids.contains(to)) {
+            if (toKind != EdgeEndpointKind.ITEM && toKind != EdgeEndpointKind.TODO) {
                 throw ProjectOpenException(
-                    "Edge $path merujuk uuid 'to' yang tidak ada di manifest: '$to'"
+                    "Edge $path punya toKind tak dikenal: '$toKind' (harus ITEM atau TODO)"
+                )
+            }
+            // Aturan 7: tiap ujung harus merujuk uuid yang ada — per kind.
+            val fromKnown = if (fromKind == EdgeEndpointKind.ITEM) uuids.contains(from) else todoUuids.contains(from)
+            if (!fromKnown) {
+                throw ProjectOpenException(
+                    "Edge $path merujuk uuid 'from' ($fromKind) yang tidak ada di manifest: '$from'"
+                )
+            }
+            val toKnown = if (toKind == EdgeEndpointKind.ITEM) uuids.contains(to) else todoUuids.contains(to)
+            if (!toKnown) {
+                throw ProjectOpenException(
+                    "Edge $path merujuk uuid 'to' ($toKind) yang tidak ada di manifest: '$to'"
                 )
             }
             // Aturan 7: type harus salah satu dari 8 ConnectionType.
@@ -226,7 +256,7 @@ object ProjectOpener {
                         "(harus salah satu dari ${ConnectionType.entries.size} ConnectionType)"
                 )
             }
-            edges.add(ParsedEdge(from, to, type))
+            edges.add(ParsedEdge(from, to, type, fromKind, toKind))
         }
 
         val strokesJson = optArray(manifest, "strokes", "strokes") ?: JSONArray()
@@ -264,7 +294,7 @@ object ProjectOpener {
             )
         }
 
-        return ParsedProject(name, createdAt, boardCamera, mapCamera, items, edges, strokes)
+        return ParsedProject(name, createdAt, boardCamera, mapCamera, items, todos, edges, strokes)
     }
 
     private fun readItem(
@@ -312,6 +342,50 @@ object ProjectOpener {
             note = optString(itemJson, "note", "$path.note", ""),
             fullFile = fullFile,
             thumbFile = thumbFile
+        )
+    }
+
+    /**
+     * Todo (T6, K11): `uuid` wajib unik + tidak kosong (aturan 9);
+     * judul/posisi/createdAt opsional dengan default (judul kosong =
+     * "Todo kosong" di UI, posisi 0 = tengah grid sentinel seperti item).
+     * Baris bersarang opsional (absen = tanpa baris).
+     */
+    private fun readTodo(
+        todoJson: JSONObject,
+        path: String,
+        todoUuids: MutableSet<String>
+    ): ParsedTodo {
+        val uuid = reqString(todoJson, "uuid", "$path.uuid")
+        if (uuid.isBlank()) {
+            throw ProjectOpenException("Field '$path.uuid' tidak boleh kosong")
+        }
+        // Aturan 9: uuid unik antar todo.
+        if (!todoUuids.add(uuid)) {
+            throw ProjectOpenException("uuid todo duplikat: '$uuid'")
+        }
+        val rowsJson = optArray(todoJson, "items", "$path.items") ?: JSONArray()
+        val rows = ArrayList<ParsedTodoItem>(rowsJson.length())
+        for (i in 0 until rowsJson.length()) {
+            val rowPath = "$path.items[$i]"
+            val rowJson = reqObject(rowsJson, i, rowPath)
+            rows.add(
+                ParsedTodoItem(
+                    text = optString(rowJson, "text", "$rowPath.text", ""),
+                    done = optBoolean(rowJson, "done", "$rowPath.done", false),
+                    createdAt = optLong(rowJson, "createdAt", "$rowPath.createdAt", 0L)
+                )
+            )
+        }
+        return ParsedTodo(
+            uuid = uuid,
+            title = optString(todoJson, "title", "$path.title", ""),
+            posX = optNumber(todoJson, "posX", "$path.posX", 0f),
+            posY = optNumber(todoJson, "posY", "$path.posY", 0f),
+            mapX = optNumber(todoJson, "mapX", "$path.mapX", 0f),
+            mapY = optNumber(todoJson, "mapY", "$path.mapY", 0f),
+            createdAt = optLong(todoJson, "createdAt", "$path.createdAt", 0L),
+            items = rows
         )
     }
 
@@ -401,6 +475,7 @@ object ProjectOpener {
     ): OpenedProject = database.withTransaction {
         val dao = database.droidCanvasDao()
         val edgeDao = database.edgeDao()
+        val todoDao = database.todoDao()
         val parsed = stagedProject.parsed
 
         // Aturan keras 3/4: id selalu baru dari autoGenerate; nama +
@@ -441,14 +516,56 @@ object ProjectOpener {
             newIdByUuid[item.uuid] = newId
         }
 
+        // Todo (T6): peta uuid arsip → id DB baru, dibangun selagi insert
+        // todo; tiap baris ikut ter-insert dengan todoId BARU — dalam
+        // transaksi yang sama dengan Board + items.
+        val newTodoIdByUuid = HashMap<String, Int>(parsed.todos.size)
+        for (todo in parsed.todos) {
+            val newTodoId = todoDao.insertTodo(
+                Todo(
+                    boardId = boardId,
+                    title = todo.title,
+                    posX = todo.posX,
+                    posY = todo.posY,
+                    mapX = todo.mapX,
+                    mapY = todo.mapY,
+                    createdAt = todo.createdAt
+                )
+            ).toInt()
+            newTodoIdByUuid[todo.uuid] = newTodoId
+            for (row in todo.items) {
+                todoDao.insertTodoItem(
+                    TodoItem(
+                        todoId = newTodoId,
+                        text = row.text,
+                        done = row.done,
+                        createdAt = row.createdAt
+                    )
+                )
+            }
+        }
+
         // Edge di-insert dengan id HASIL pemetaan, dalam transaksi yang sama.
+        // Ujung di-resolve per kind (T6): ITEM → peta item, TODO → peta todo.
         for (edge in parsed.edges) {
+            val fromId = if (edge.fromKind == EdgeEndpointKind.ITEM) {
+                newIdByUuid.getValue(edge.from)
+            } else {
+                newTodoIdByUuid.getValue(edge.from)
+            }
+            val toId = if (edge.toKind == EdgeEndpointKind.ITEM) {
+                newIdByUuid.getValue(edge.to)
+            } else {
+                newTodoIdByUuid.getValue(edge.to)
+            }
             edgeDao.insertEdge(
                 Edge(
                     boardId = boardId,
-                    fromItemId = newIdByUuid.getValue(edge.from),
-                    toItemId = newIdByUuid.getValue(edge.to),
-                    type = edge.type
+                    fromItemId = fromId,
+                    toItemId = toId,
+                    type = edge.type,
+                    fromKind = edge.fromKind,
+                    toKind = edge.toKind
                 )
             )
         }
@@ -497,6 +614,7 @@ object ProjectOpener {
         val boardCamera: CameraState,
         val mapCamera: CameraState,
         val items: List<ParsedItem>,
+        val todos: List<ParsedTodo>,
         val edges: List<ParsedEdge>,
         val strokes: List<ParsedStroke>
     )
@@ -525,7 +643,30 @@ object ProjectOpener {
         val thumbFile: String
     )
 
-    private data class ParsedEdge(val from: String, val to: String, val type: String)
+    private data class ParsedEdge(
+        val from: String,
+        val to: String,
+        val type: String,
+        val fromKind: String,
+        val toKind: String
+    )
+
+    private data class ParsedTodo(
+        val uuid: String,
+        val title: String,
+        val posX: Float,
+        val posY: Float,
+        val mapX: Float,
+        val mapY: Float,
+        val createdAt: Long,
+        val items: List<ParsedTodoItem>
+    )
+
+    private data class ParsedTodoItem(
+        val text: String,
+        val done: Boolean,
+        val createdAt: Long
+    )
 
     private data class ParsedStroke(
         val id: String,
@@ -676,6 +817,26 @@ object ProjectOpener {
         val value = json.opt(key) ?: return default
         if (value === JSONObject.NULL) return default
         return toNumber(value, path)
+    }
+
+    private fun optLong(json: JSONObject, key: String, path: String, default: Long): Long {
+        val value = json.opt(key) ?: return default
+        if (value === JSONObject.NULL) return default
+        return when (value) {
+            is Int -> value.toLong()
+            is Long -> value
+            else -> throw ProjectOpenException(
+                "Field '$path' harus integer, ditemukan ${typeName(value)}"
+            )
+        }
+    }
+
+    private fun optBoolean(json: JSONObject, key: String, path: String, default: Boolean): Boolean {
+        val value = json.opt(key) ?: return default
+        if (value === JSONObject.NULL) return default
+        return value as? Boolean ?: throw ProjectOpenException(
+            "Field '$path' harus boolean, ditemukan ${typeName(value)}"
+        )
     }
 
     /** Ekstensi berkas arsip, huruf kecil; tanpa ekstensi → "jpg". */

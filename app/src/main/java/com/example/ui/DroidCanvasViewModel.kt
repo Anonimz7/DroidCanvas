@@ -748,6 +748,8 @@ class DroidCanvasViewModel(
                     board = board,
                     items = canvasItems.value,
                     edges = edges.value,
+                    todos = todos.value,
+                    todoItems = todoItems.value,
                     strokes = strokes,
                     boardCamera = CameraState(canvasScale, canvasTranslateX, canvasTranslateY),
                     mapCamera = CameraState(mapScale, mapTranslateX, mapTranslateY),

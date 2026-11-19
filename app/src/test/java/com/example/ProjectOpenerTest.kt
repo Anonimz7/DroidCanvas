@@ -12,6 +12,8 @@ import com.example.data.ProjectOpenException
 import com.example.data.ProjectOpener
 import com.example.data.ProjectSaver
 import com.example.data.SavedStroke
+import com.example.data.Todo
+import com.example.data.TodoItem
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
@@ -472,6 +474,148 @@ class ProjectOpenerTest {
     }
 
     // ------------------------------------------------------------------
+    // T6: round-trip todo
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `round-trip todo - judul, baris dan garis todo kembali identik dengan id baru`() {
+        val srcDir = File(workDir, "src").apply { mkdirs() }
+        val fullBytes = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 1, 2, 3)
+        val thumbBytes = byteArrayOf(9, 8, 7)
+        val full = writeBytes(srcDir, "ref_full_1.jpg", fullBytes)
+        val thumb = writeBytes(srcDir, "ref_thumb_1.jpg", thumbBytes)
+        val board = Board(id = 7, name = "Papan Uji", createdAt = 1795054800000L)
+        val item = CanvasItem(
+            id = 11, boardId = 7,
+            fullPath = full.absolutePath, thumbPath = thumb.absolutePath,
+            posX = 120f, posY = 80f, width = 320f, height = 240f,
+            scale = 1f, rotation = 0f, zIndex = 0,
+            isPinned = false, flipHorizontal = false, flipVertical = false,
+            isGrayscale = false, isValuesEnabled = false,
+            simplicity = 0, stopsCount = 3, stopsJson = "",
+            mapX = 40f, mapY = 24f, note = ""
+        )
+        val todo1 = Todo(
+            id = 1, boardId = 7, title = "Belanja",
+            posX = 120f, posY = 400f, mapX = 40f, mapY = 500f,
+            createdAt = 1795054800000L
+        )
+        val todo2 = Todo(
+            id = 2, boardId = 7, title = "Tugas",
+            posX = 400f, posY = 400f, mapX = 300f, mapY = 500f,
+            createdAt = 1795054801000L
+        )
+        val rows = listOf(
+            TodoItem(id = 1, todoId = 1, text = "Beli cat", done = false, createdAt = 1795054800000L),
+            TodoItem(id = 2, todoId = 1, text = "Beli kuas", done = true, createdAt = 1795054801000L),
+            TodoItem(id = 3, todoId = 2, text = "Kirim laporan", done = false, createdAt = 1795054802000L)
+        )
+        val edgeItemTodo = Edge(
+            id = 5, boardId = 7, fromItemId = 11, toItemId = 1,
+            type = "REFERENCES", fromKind = "ITEM", toKind = "TODO"
+        )
+        val edgeTodoTodo = Edge(
+            id = 6, boardId = 7, fromItemId = 1, toItemId = 2,
+            type = "RELATED_TO", fromKind = "TODO", toKind = "TODO"
+        )
+        val archive = File(workDir, "papan-todo.dc")
+        ProjectSaver.save(
+            board = board, items = listOf(item),
+            edges = listOf(edgeItemTodo, edgeTodoTodo),
+            todos = listOf(todo1, todo2), todoItems = rows,
+            strokes = emptyList(),
+            boardCamera = CameraState(scale = 1f, translateX = 0f, translateY = 0f),
+            mapCamera = CameraState(scale = 1f, translateX = 0f, translateY = 0f),
+            appVersion = "0.2.0", outputFile = archive
+        )
+
+        val result = runBlocking { ProjectOpener.open(archive, filesDir, database) }
+
+        // --- todos: judul + posisi + createdAt identik, id baru ---
+        val todos = runBlocking { database.todoDao().getTodosForBoard(result.boardId).first() }
+        assertEquals(2, todos.size)
+        val openedTodo1 = todos[0]
+        val openedTodo2 = todos[1]
+        assertEquals(result.boardId, openedTodo1.boardId)
+        assertEquals(result.boardId, openedTodo2.boardId)
+        assertNotEquals("id todo harus baru", todo1.id, openedTodo1.id)
+        assertNotEquals("id todo harus baru", todo2.id, openedTodo2.id)
+        assertEquals("Belanja", openedTodo1.title)
+        assertEquals(120.0, openedTodo1.posX.toDouble(), 0.001)
+        assertEquals(400.0, openedTodo1.posY.toDouble(), 0.001)
+        assertEquals(40.0, openedTodo1.mapX.toDouble(), 0.001)
+        assertEquals(500.0, openedTodo1.mapY.toDouble(), 0.001)
+        assertEquals(1795054800000L, openedTodo1.createdAt)
+        assertEquals("Tugas", openedTodo2.title)
+        assertEquals(1795054801000L, openedTodo2.createdAt)
+
+        // --- baris: teks + centang ikut todo BARU-nya ---
+        val openedRows = runBlocking { database.todoDao().getTodoItemsForBoard(result.boardId).first() }
+        assertEquals(3, openedRows.size)
+        val rowsTodo1 = openedRows.filter { it.todoId == openedTodo1.id }.sortedBy { it.createdAt }
+        val rowsTodo2 = openedRows.filter { it.todoId == openedTodo2.id }
+        assertEquals(2, rowsTodo1.size)
+        assertEquals("Beli cat", rowsTodo1[0].text)
+        assertFalse(rowsTodo1[0].done)
+        assertEquals("Beli kuas", rowsTodo1[1].text)
+        assertTrue(rowsTodo1[1].done)
+        assertEquals(1, rowsTodo2.size)
+        assertEquals("Kirim laporan", rowsTodo2.single().text)
+        assertFalse(rowsTodo2.single().done)
+
+        // --- garis: ujung ter-resolve ke id BARU + kind ikut ---
+        val items = runBlocking { database.droidCanvasDao().getItemsForBoard(result.boardId).first() }
+        assertEquals(1, items.size)
+        val edges = runBlocking { database.edgeDao().getEdgesForBoard(result.boardId).first() }
+        assertEquals(2, edges.size)
+        val openedEdge1 = edges.single { it.type == "REFERENCES" }
+        assertEquals(items.single().id, openedEdge1.fromItemId)
+        assertEquals(openedTodo1.id, openedEdge1.toItemId)
+        assertEquals("ITEM", openedEdge1.fromKind)
+        assertEquals("TODO", openedEdge1.toKind)
+        val openedEdge2 = edges.single { it.type == "RELATED_TO" }
+        assertEquals(openedTodo1.id, openedEdge2.fromItemId)
+        assertEquals(openedTodo2.id, openedEdge2.toItemId)
+        assertEquals("TODO", openedEdge2.fromKind)
+        assertEquals("TODO", openedEdge2.toKind)
+    }
+
+    @Test
+    fun `edge ke todo yang tidak ada ditolak`() {
+        val archive = File(workDir, "edge-todo-hilang.dc")
+        val todos = JSONArray().put(todoJson("t1"))
+        val edges = JSONArray().put(
+            JSONObject().apply {
+                put("from", "u1"); put("to", "ghost"); put("type", "PLAIN")
+                put("fromKind", "ITEM"); put("toKind", "TODO")
+            }
+        )
+        writeArchive(
+            archive,
+            manifestWithItem(edges = edges, todos = todos),
+            mapOf("images/u1_full.jpg" to byteArrayOf(1), "images/u1_thumb.jpg" to byteArrayOf(2))
+        )
+        assertOpenFails(archive, "ghost")
+    }
+
+    @Test
+    fun `edge dengan kind tak dikenal ditolak`() {
+        val archive = File(workDir, "edge-kind-salah.dc")
+        val edges = JSONArray().put(
+            JSONObject().apply {
+                put("from", "u1"); put("to", "u1"); put("type", "PLAIN")
+                put("fromKind", "BUKAN"); put("toKind", "ITEM")
+            }
+        )
+        writeArchive(
+            archive,
+            manifestWithItem(edges = edges),
+            mapOf("images/u1_full.jpg" to byteArrayOf(1), "images/u1_thumb.jpg" to byteArrayOf(2))
+        )
+        assertOpenFails(archive, "BUKAN")
+    }
+
+    // ------------------------------------------------------------------
     // Pembantu
     // ------------------------------------------------------------------
 
@@ -576,8 +720,20 @@ class ProjectOpenerTest {
         put("thumbFile", "images/${uuid}_thumb.jpg")
     }
 
-    /** Manifest minimal valid berisi 1 item (`u1`); `edges`/`strokes`/`mapCamera` opsional. */
-    private fun manifestWithItem(formatVersion: Any = 1, edges: JSONArray? = null): JSONObject =
+    private fun todoJson(uuid: String): JSONObject = JSONObject().apply {
+        put("uuid", uuid)
+        put("title", "Belanja")
+        put("posX", 120); put("posY", 400); put("mapX", 40); put("mapY", 500)
+        put("createdAt", 1795054800000L)
+        put("items", JSONArray())
+    }
+
+    /** Manifest minimal valid berisi 1 item (`u1`); `edges`/`todos`/`strokes`/`mapCamera` opsional. */
+    private fun manifestWithItem(
+        formatVersion: Any = 1,
+        edges: JSONArray? = null,
+        todos: JSONArray? = null
+    ): JSONObject =
         JSONObject().apply {
             put("formatVersion", formatVersion)
             put("appVersion", "0.2.0")
@@ -588,5 +744,6 @@ class ProjectOpenerTest {
             })
             put("items", JSONArray().put(itemJson("u1")))
             if (edges != null) put("edges", edges)
+            if (todos != null) put("todos", todos)
         }
 }

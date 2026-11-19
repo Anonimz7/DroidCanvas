@@ -1,8 +1,8 @@
 # Todo berbasis kanvas — objek kanvas seperti gambar & goresan
 
 > **Terakhir ditinjau:** 2026-11-19 · **HEAD:** `c37d79d`
-> **Status:** Dirancang 2026-11-19; **T1–T5 + R1–R3 selesai (kode)
-> 2026-11-19**, T6–T8 belum. Dokumen ini hasil tiga kali koreksi user atas
+> **Status:** Dirancang 2026-11-19; **T1–T6 + R1–R3 selesai (kode)
+> 2026-11-19**, T7–T8 belum. Dokumen ini hasil tiga kali koreksi user atas
 > ide awal + satu koreksi konsep (K11) — baca §3 dulu sebelum mengubah apa
 > pun.
 
@@ -230,7 +230,7 @@ walau gambarnya dihapus. Satu kolom `note` tidak bisa menampung itu.
   (default `ITEM` bila absen — arsip lama tetap bisa dibuka).
   `formatVersion` **tetap 1** (preseden Map).
 - `ProjectSaver`: tulis `todos[]` + garis todo dari daftar ViewModel
-  (hari ini Saver T5 melewati garis ke/dari todo — ditutup T6).
+  (dulu Saver T5 melewati garis ke/dari todo — ditutup T6, 2026-11-19).
   `ProjectOpener`: insert todo + baris dalam transaksi yang sama dengan
   Board + item + edge; validasi: `title` harus string, `done` harus
   boolean, posisi harus angka, `kind` harus `ITEM`/`TODO`.
@@ -249,7 +249,7 @@ walau gambarnya dihapus. Satu kolom `note` tidak bisa menampung itu.
 | R1 | Data + ViewModel (K11): Todo jadi judul + `TodoItem` + migrasi 12→13 | **Selesai (kode) 2026-11-19:** `Todo.text`/`done` dihapus → `Todo.title`; entitas baru `TodoItem` (tabel `todo_items`, FK CASCADE); migrasi 12→13 DROP + buat ulang `todos` (todo lama **direset**, tidak dimigrasi); `TodoDao` + 4 passthrough repository; ViewModel `todoItems` Flow + CRUD baris (`addTodoItem`/`updateTodoItem`/`toggleTodoItem`/`deleteTodoItem`); `addTodoAtCenter(title, …)`; test baru `TodoItemTest` 5 kasus (**belum dieksekusi** — butuh `:app:testDebugUnitTest` JDK 21). |
 | R2 | Board (K11): kartu jadi daftar + bubble note di Board + hapus badge | **Selesai (kode) 2026-11-19:** `TodoCardView` memakai `TodoListContent` (judul + daftar + tombol +); dialog isi judul (`board_todo_title_input`) + dialog baris (`board_todo_item_input`, hapus baris dari dalam dialog) + konfirmasi hapus baris; seksi TODO sidebar: dialog judul (`todo_title_input`) + kartu demo bentuk baru (judul + garis + 2 baris); **bubble note di Board** (teks note di bawah gambar, 56dp, ketuk → ubah note; badge ikon komentar dihapus; O4 direvisi — lihat ADR-022). |
 | R3 | Map (K11): node jadi daftar + thumbnail ikut rasio media | **Selesai (kode) 2026-11-19:** `TodoNodeCard` memakai `TodoListContent` (kartu sama seperti Board) + 3 dialog todo Map (`map_todo_title_input` / `map_todo_item_input` / konfirmasi hapus baris); `mapThumbHeightDp` — thumbnail Map **ikut rasio media** bila `mapImageFull` nyala (tinggi = 180dp × h/w; gambar rasio layar ponsel jadi node tinggi, tampil utuh selebar 180dp, bukan mengecil di kotak 120dp); `fitToContent` Map memakai tinggi node sebenarnya (gambar + todo). |
-| T6 | Save/Open: `todos[]` di manifest + Saver + Opener (satu transaksi) | Belum — bentuk baru (K11): `todos[]` berisi `title` + `items[]` bersarang; edge manifest `fromKind`/`toKind` (default `ITEM`); Saver menulis garis todo (hari ini dilewati), Opener memvalidasi kind + insert dalam transaksi yang sama |
+| T6 | Save/Open: `todos[]` di manifest + Saver + Opener (satu transaksi) | **Selesai (kode) 2026-11-19:** Saver menulis `todos[]` (`uuid` baru per todo + `title` + posisi + `items[]` bersarang) + edge menulis `fromKind`/`toKind` selalu (garis todo tidak lagi dilewati); Opener memvalidasi kind + ujung TODO (aturan 7 + 9, kind absen = ITEM) + insert todo + baris + edge dalam transaksi yang sama; arsip tanpa `todos[]` tetap terbuka bersih. Test: `ProjectSaverTest` 3 baru (round-trip todo + 2 penolakan) + `ProjectOpenerTest` 3 baru (round-trip todo + 2 penolakan) — **belum dieksekusi** (butuh `:app:testDebugUnitTest` JDK 21). |
 | T7 | Undo: todo ikut snapshot (butuh baca kode undo dulu — P4) | Belum |
 | T8 | Uji manual di perangkat: tambah dari Board + dari Map, geser, centang, hapus gambar (todo tetap), hapus todo (edge ikut hilang), Save → Open (todo utuh) | Belum |
 

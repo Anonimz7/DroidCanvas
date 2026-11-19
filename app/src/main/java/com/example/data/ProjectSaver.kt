@@ -34,10 +34,15 @@ import java.util.zip.ZipOutputStream
  * - Tiap item mendapat `uuid` baru per Save (`UUID.randomUUID()`); uuid
  *   itu juga stem nama berkas gambar di arsip. Id baris DB tidak pernah
  *   ditulis ke manifest.
+ * - Todo (T6, K11) ikut ditulis: tiap todo mendapat `uuid` baru per Save
+ *   (kunci join edge + baris; todo tidak punya berkas gambar), `todos[]`
+ *   berisi `title` + posisi + `items[]` bersarang; edge menulis
+ *   `fromKind`/`toKind` (`ITEM`/`TODO`) dan ujungnya di-resolve per kind.
  * - Berkas gambar disalin byte-per-byte (tidak di-decode).
- * - Gagal cepat: edge yang merujuk item di luar daftar, type edge yang
- *   tak dikenal, atau berkas sumber yang hilang → [IllegalArgumentException]
- *   sebelum ada byte yang ditulis ke `outputFile`.
+ * - Gagal cepat: edge yang merujuk item/todo di luar daftar, kind edge
+ *   yang tak dikenal, type edge yang tak dikenal, atau berkas sumber
+ *   yang hilang → [IllegalArgumentException] sebelum ada byte yang
+ *   ditulis ke `outputFile`.
  */
 data class CameraState(
     val scale: Float,
@@ -67,20 +72,28 @@ object ProjectSaver {
      * @param board papan yang disimpan; hanya `name` dan `createdAt` yang
      *   masuk manifest (kolom mati dikecualikan, K1).
      * @param items semua item papan (urutannya dipertahankan di manifest).
-     * @param edges garis Map; `fromItemId`/`toItemId` harus merujuk ke
-     *   item di [items], `type` harus salah satu nama [ConnectionType].
+     * @param edges garis Map; tiap ujung merujuk ke item (`fromKind`/
+     *   `toKind` = `ITEM`) atau todo (`TODO`), `type` harus salah satu
+     *   nama [ConnectionType].
+     * @param todos semua todo papan (T6, K11); tiap todo mendapat `uuid`
+     *   baru per Save sebagai kunci join edge + baris.
+     * @param todoItems semua baris todo papan (dikelompokkan ke todo
+     *   pemiliknya lewat `todoId`; urutan dipertahankan di manifest).
      * @param strokes goresan papan (boleh kosong).
      * @param boardCamera kamera Board saat Save (dari ViewModel/prefs).
      * @param mapCamera kamera Map saat Save (dari ViewModel/prefs).
      * @param appVersion versi aplikasi penulis, mis. `BuildConfig.VERSION_NAME`.
      * @param outputFile berkas tujuan; direktori induk dibuat bila belum ada.
-     * @throws IllegalArgumentException bila edge merujuk item yang tidak ada,
-     *   type edge tak dikenal, atau berkas gambar sumber tidak ada.
+     * @throws IllegalArgumentException bila edge merujuk item/todo yang
+     *   tidak ada, kind edge tak dikenal, type edge tak dikenal, atau
+     *   berkas gambar sumber tidak ada.
      */
     fun save(
         board: Board,
         items: List<CanvasItem>,
         edges: List<Edge>,
+        todos: List<Todo> = emptyList(),
+        todoItems: List<TodoItem> = emptyList(),
         strokes: List<SavedStroke>,
         boardCamera: CameraState,
         mapCamera: CameraState,
@@ -95,20 +108,37 @@ object ProjectSaver {
             uuid to item
         }
 
-        // Todo-edges BELUM disimpan (T5): manifest belum punya todos[]
-        // (T6), jadi garis ke/dari todo tidak bisa dirujuk di arsip —
-        // lewati saja supaya Save tidak gagal (fail-fast di bawah akan
-        // menolaknya karena id todo bukan id gambar); T6 menutup gap ini
-        // (todos[] + kind di manifest). Todo sendiri juga belum disimpan.
-        val itemEdges = edges.filter { it.fromKind == EdgeEndpointKind.ITEM && it.toKind == EdgeEndpointKind.ITEM }
+        // Satu uuid baru per todo (T6) — kunci join edge + baris di
+        // manifest; todo tidak punya berkas gambar.
+        val uuidByTodoId = LinkedHashMap<Int, String>(todos.size)
+        val todoEntries = todos.map { todo ->
+            val uuid = UUID.randomUUID().toString()
+            uuidByTodoId[todo.id] = uuid
+            uuid to todo
+        }
 
         // Gagal cepat, sebelum ada byte yang ditulis.
-        for (edge in itemEdges) {
-            require(uuidByItemId.containsKey(edge.fromItemId)) {
-                "Edge ${edge.id} merujuk ke item ${edge.fromItemId} yang tidak ada di papan '${board.name}'"
+        fun uuidOf(kind: String, id: Int): String? =
+            if (kind == EdgeEndpointKind.ITEM) uuidByItemId[id] else uuidByTodoId[id]
+
+        for (edge in edges) {
+            require(
+                edge.fromKind == EdgeEndpointKind.ITEM || edge.fromKind == EdgeEndpointKind.TODO
+            ) {
+                "Edge ${edge.id} punya fromKind tak dikenal: '${edge.fromKind}'"
             }
-            require(uuidByItemId.containsKey(edge.toItemId)) {
-                "Edge ${edge.id} merujuk ke item ${edge.toItemId} yang tidak ada di papan '${board.name}'"
+            require(
+                edge.toKind == EdgeEndpointKind.ITEM || edge.toKind == EdgeEndpointKind.TODO
+            ) {
+                "Edge ${edge.id} punya toKind tak dikenal: '${edge.toKind}'"
+            }
+            require(uuidOf(edge.fromKind, edge.fromItemId) != null) {
+                val what = if (edge.fromKind == EdgeEndpointKind.ITEM) "item" else "todo"
+                "Edge ${edge.id} merujuk ke $what ${edge.fromItemId} yang tidak ada di papan '${board.name}'"
+            }
+            require(uuidOf(edge.toKind, edge.toItemId) != null) {
+                val what = if (edge.toKind == EdgeEndpointKind.ITEM) "item" else "todo"
+                "Edge ${edge.id} merujuk ke $what ${edge.toItemId} yang tidak ada di papan '${board.name}'"
             }
             require(ConnectionType.entries.any { it.name == edge.type }) {
                 "Edge ${edge.id} punya type tak dikenal: '${edge.type}'"
@@ -124,8 +154,8 @@ object ProjectSaver {
         }
 
         val manifest = buildManifest(
-            board, entries, itemEdges, strokes,
-            boardCamera, mapCamera, appVersion, uuidByItemId
+            board, entries, edges, todoEntries, todoItems, strokes,
+            boardCamera, mapCamera, appVersion, uuidByItemId, uuidByTodoId
         )
 
         outputFile.parentFile?.mkdirs()
@@ -145,11 +175,14 @@ object ProjectSaver {
         board: Board,
         entries: List<Pair<String, CanvasItem>>,
         edges: List<Edge>,
+        todoEntries: List<Pair<String, Todo>>,
+        todoItems: List<TodoItem>,
         strokes: List<SavedStroke>,
         boardCamera: CameraState,
         mapCamera: CameraState,
         appVersion: String,
-        uuidByItemId: Map<Int, String>
+        uuidByItemId: Map<Int, String>,
+        uuidByTodoId: Map<Int, String>
     ): JSONObject {
         val manifest = JSONObject()
         manifest.put("formatVersion", FORMAT_VERSION)
@@ -194,12 +227,50 @@ object ProjectSaver {
         val edgesJson = JSONArray()
         for (edge in edges) {
             val edgeJson = JSONObject()
-            edgeJson.put("from", uuidByItemId.getValue(edge.fromItemId))
-            edgeJson.put("to", uuidByItemId.getValue(edge.toItemId))
+            // Ujung di-resolve per kind (T6): ITEM → uuid item, TODO → uuid todo.
+            val fromUuid = if (edge.fromKind == EdgeEndpointKind.ITEM) {
+                uuidByItemId.getValue(edge.fromItemId)
+            } else {
+                uuidByTodoId.getValue(edge.fromItemId)
+            }
+            val toUuid = if (edge.toKind == EdgeEndpointKind.ITEM) {
+                uuidByItemId.getValue(edge.toItemId)
+            } else {
+                uuidByTodoId.getValue(edge.toItemId)
+            }
+            edgeJson.put("from", fromUuid)
+            edgeJson.put("to", toUuid)
             edgeJson.put("type", edge.type)
+            edgeJson.put("fromKind", edge.fromKind)
+            edgeJson.put("toKind", edge.toKind)
             edgesJson.put(edgeJson)
         }
         manifest.put("edges", edgesJson)
+
+        // Todo (T6, K11): judul + posisi + baris bersarang; uuid per todo
+        // adalah kunci join edge + baris (todo tidak punya berkas gambar).
+        val todosJson = JSONArray()
+        for ((uuid, todo) in todoEntries) {
+            val todoJson = JSONObject()
+            todoJson.put("uuid", uuid)
+            todoJson.put("title", todo.title)
+            todoJson.put("posX", todo.posX)
+            todoJson.put("posY", todo.posY)
+            todoJson.put("mapX", todo.mapX)
+            todoJson.put("mapY", todo.mapY)
+            todoJson.put("createdAt", todo.createdAt)
+            val rowsJson = JSONArray()
+            for (row in todoItems.filter { it.todoId == todo.id }) {
+                val rowJson = JSONObject()
+                rowJson.put("text", row.text)
+                rowJson.put("done", row.done)
+                rowJson.put("createdAt", row.createdAt)
+                rowsJson.put(rowJson)
+            }
+            todoJson.put("items", rowsJson)
+            todosJson.put(todoJson)
+        }
+        manifest.put("todos", todosJson)
 
         val strokesJson = JSONArray()
         for (stroke in strokes) {
