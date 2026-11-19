@@ -87,6 +87,7 @@ Semua baris di bawah ini dibaca langsung dari kode di HEAD `d11aee5`
 | K6 | Posisi awal | **Tengah tampilan yang sedang terlihat** (pusat viewport dalam koordinat kanvas, dari kamera aktif); lalu digeser manual seperti gambar. |
 | K7 | Tampilan | Board: **kartu todo** (kotak centang + teks). Map: **node seperti gambar** — kartu + port (dot) di sisinya, bisa di-connect dot-to-dot, bisa jadi ujung edge. |
 | K8 | Per papan | Todo milik satu papan (satu workspace = satu set todo), seperti item dan edge. Belum diputuskan eksplisit — lihat P1. |
+| K9 | Switch draw mode | **Todo TIDAK memakai `isDrawModeEnabled`.** Switch itu ada karena menggambar adalah *mode input*: saat nyala, overlay gambar (`DroidCanvasScreen.kt:906`) menangkap semua sentuhan kanvas dan mengubahnya jadi goresan. Tambah todo adalah *aksi diskrit* (ketuk template → konfirmasi → sisip di tengah) — tidak ada gesture kanvas yang ditafsir ulang, jadi tidak butuh mode. Konsekuensi: seksi TODO adalah **sibling** seksi DRAWING TOOLS, di luar gate `if (viewModel.isDrawModeEnabled)` (`:5150`); saat draw mode nyala, overlay tetap mengambil alih sentuhan sehingga kartu todo (seperti gambar) tidak bisa diketuk/digeser sampai draw mode dimatikan. |
 
 ### Usulan (butuh kata user sebelum dibangun)
 
@@ -135,6 +136,10 @@ kolom `note` tidak bisa menampung itu.
 - Seksi baru di bawah kartu DRAWING TOOLS (cabang `SidebarTab.DRAW`,
   setelah kartu ditutup, sebelum `:5441`): header `SidebarSectionHeader`
   (pola seksi yang sama, dengan lipat/buka) + daftar template.
+  **Penting (K9):** seksi ini di luar gate `if (viewModel.isDrawModeEnabled)`
+  (`:5150`) — pemilih Todo bekerja walau draw mode mati; switch itu hanya
+  mengunci kartu drawing tools ("Enable drawing mode to unlock pen
+  options.").
 - Daftar menampilkan **desain demo** (pratinjau visual kartu todo) dan
   satu entri yang bisa dipakai: **blank todo**. Entri demo lain tidak
   bisa diketuk (atau tidak ada — diputuskan saat membangun; v1 hanya
