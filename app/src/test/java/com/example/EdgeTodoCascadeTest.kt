@@ -58,8 +58,8 @@ class EdgeTodoCascadeTest {
         CanvasItem(boardId = boardId, fullPath = "/tmp/full.jpg", thumbPath = "/tmp/thumb.jpg", posX = 0f, posY = 0f, width = 100f, height = 100f)
     ).toInt()
 
-    private suspend fun insertTodo(text: String): Int = repository.insertTodo(
-        Todo(boardId = boardId, text = text)
+    private suspend fun insertTodo(title: String): Int = repository.insertTodo(
+        Todo(boardId = boardId, title = title)
     ).toInt()
 
     private suspend fun edges(): List<Edge> = repository.getEdgesForBoard(boardId).first()
@@ -94,7 +94,7 @@ class EdgeTodoCascadeTest {
         repository.insertEdge(Edge(boardId = boardId, fromItemId = item1, toItemId = todo1, type = "USED_IN", toKind = EdgeEndpointKind.TODO))
         assertEquals(3, edges().size)
 
-        repository.deleteTodo(Todo(id = todo1, boardId = boardId, text = "A"))
+        repository.deleteTodo(Todo(id = todo1, boardId = boardId, title = "A"))
 
         val remaining = edges()
         assertEquals(1, remaining.size)

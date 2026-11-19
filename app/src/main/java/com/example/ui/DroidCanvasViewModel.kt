@@ -26,6 +26,7 @@ import com.example.data.ProjectFileStore
 import com.example.data.ProjectSaver
 import com.example.data.SavedStroke
 import com.example.data.Todo
+import com.example.data.TodoItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.onEach
@@ -217,6 +218,24 @@ class DroidCanvasViewModel(
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = emptyList()
     )
+
+    // Baris di bawah judul todo (R1, K11): aliran datar per papan — baris
+    // tidak punya posisi/override (tidak digeser), jadi tidak perlu pola
+    // db + overrides seperti todos di atas. UI menggabungkan dengan
+    // todos berdasarkan todoId.
+    val todoItems: StateFlow<List<TodoItem>> = _currentBoardId
+        .flatMapLatest { boardId ->
+            if (boardId != null) {
+                repository.getTodoItemsForBoard(boardId)
+            } else {
+                flowOf(emptyList())
+            }
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
 
     private val _valuesResults = MutableStateFlow<Map<Int, ValuesResult>>(emptyMap())
     val valuesResults: StateFlow<Map<Int, ValuesResult>> = _valuesResults.asStateFlow()
@@ -1682,24 +1701,48 @@ class DroidCanvasViewModel(
     }
 
     // Todo berbasis kanvas (langkah 6, T2: thin pass-throughs; UI tambah
-    // dan gesture adalah T3–T5). No undo snapshot here — todos are not part
-    // of the item snapshot stacks yet (T7, P4).
-    fun updateTodo(todo: Todo, text: String) {
-        if (todo.text == text) return
+    // dan gesture adalah T3–T5; R1: judul + baris, K11). No undo snapshot
+    // here — todos are not part of the item snapshot stacks yet (T7, P4).
+    // updateTodo mengubah JUDUL (judul cuma kepala, tidak bisa dicentang —
+    // centang pindah ke tiap baris, toggleTodoItem di bawah).
+    fun updateTodo(todo: Todo, title: String) {
+        if (todo.title == title) return
         viewModelScope.launch(Dispatchers.IO) {
-            repository.updateTodo(todo.copy(text = text))
-        }
-    }
-
-    fun toggleTodo(todo: Todo) {
-        viewModelScope.launch(Dispatchers.IO) {
-            repository.updateTodo(todo.copy(done = !todo.done))
+            repository.updateTodo(todo.copy(title = title))
         }
     }
 
     fun deleteTodo(todo: Todo) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.deleteTodo(todo)
+        }
+    }
+
+    // Baris di bawah judul todo (R1, K11): thin pass-throughs. Baris baru
+    // selalu di bawah (createdAt); hapus baris tidak menyentuh judul,
+    // garis, atau baris lain. No undo snapshot (T7, P4).
+    fun addTodoItem(todoId: Int, text: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertTodoItem(TodoItem(todoId = todoId, text = text))
+        }
+    }
+
+    fun updateTodoItem(item: TodoItem, text: String) {
+        if (item.text == text) return
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.updateTodoItem(item.copy(text = text))
+        }
+    }
+
+    fun toggleTodoItem(item: TodoItem) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.updateTodoItem(item.copy(done = !item.done))
+        }
+    }
+
+    fun deleteTodoItem(item: TodoItem) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.deleteTodoItem(item)
         }
     }
 
@@ -1733,9 +1776,9 @@ class DroidCanvasViewModel(
     // pun ia dibuka, tanpa lewat sentinel grid (0,0). Yang disimpan adalah
     // titik TENGAH kartu (bukan sudut kiri atas seperti CanvasItem); T3/T4
     // merender kartu terpusat pada titik ini. Mengembalikan id baris supaya
-    // pemanggil (T3) bisa langsung membuka dialog isi teks untuk todo itu.
+    // pemanggil (T3) bisa langsung membuka dialog isi judul untuk todo itu.
     // viewportWidth/Height dalam px (sama seperti fitToContent).
-    suspend fun addTodoAtCenter(text: String, viewportWidth: Float, viewportHeight: Float): Long? {
+    suspend fun addTodoAtCenter(title: String, viewportWidth: Float, viewportHeight: Float): Long? {
         val boardId = _currentBoardId.value ?: return null
         val boardCx = (viewportWidth / 2f - canvasTranslateX) / canvasScale
         val boardCy = (viewportHeight / 2f - canvasTranslateY) / canvasScale
@@ -1743,7 +1786,7 @@ class DroidCanvasViewModel(
         val mapCy = (viewportHeight / 2f - mapTranslateY) / mapScale
         return withContext(Dispatchers.IO) {
             repository.insertTodo(
-                Todo(boardId = boardId, text = text, posX = boardCx, posY = boardCy, mapX = mapCx, mapY = mapCy)
+                Todo(boardId = boardId, title = title, posX = boardCx, posY = boardCy, mapX = mapCx, mapY = mapCy)
             )
         }
     }
@@ -1923,7 +1966,8 @@ class DroidCanvasViewModel(
 
     fun fitToContent(viewportWidth: Float, viewportHeight: Float, density: Float, isMapMode: Boolean = false) {
         val items = canvasItems.value
-        if (items.isEmpty()) {
+        val todoList = todos.value
+        if (items.isEmpty() && todoList.isEmpty()) {
             resetZoom(isMapMode)
             return
         }
@@ -1935,17 +1979,33 @@ class DroidCanvasViewModel(
 
         if (isMapMode) {
             // Kotak pembatas dari posisi + ukuran kartu node Map — ukuran
-            // harus sama dengan MapView.kt (cardWidth 180dp, cardHeight
-            // 188dp, noteGap 8dp, noteBubbleHeight 56dp, noteButtonSize
-            // 36dp; lihat nodeHeightPx di sana).
+            // harus sama dengan MapView.kt (lihat mapThumbHeightDp,
+            // todoCardHeightDp, nodeHeightPx di sana). Thumbnail gambar
+            // kini ikut rasio media (R3), jadi tinggi kartu per item
+            // berbeda; kartu todo ikut jumlah barisnya (R1).
             val nodeWidthPx = 180f * density
             items.forEach { item ->
-                val nodeHeightPx = (188f + 8f +
+                val cardHeightDp = mapThumbHeightDp(item, mapImageFull).value + 68f
+                val nodeHeightPx = (cardHeightDp + 8f +
                     (if (item.note.isNotBlank()) 56f + 8f else 0f) + 36f) * density
                 val left = item.mapX
                 val top = item.mapY
                 val right = item.mapX + nodeWidthPx
                 val bottom = item.mapY + nodeHeightPx
+
+                if (left < minX) minX = left
+                if (top < minY) minY = top
+                if (right > maxX) maxX = right
+                if (bottom > maxY) maxY = bottom
+            }
+            val itemRows = todoItems.value
+            todoList.forEach { todo ->
+                val rowCount = itemRows.count { it.todoId == todo.id }
+                val nodeHeightPx = todoCardHeightDp(rowCount).value * density
+                val left = todo.mapX
+                val top = todo.mapY
+                val right = todo.mapX + nodeWidthPx
+                val bottom = todo.mapY + nodeHeightPx
 
                 if (left < minX) minX = left
                 if (top < minY) minY = top

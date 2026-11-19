@@ -1,6 +1,6 @@
 # Model Data
 
-> **Terakhir ditinjau:** 2026-11-19 · **HEAD:** `5f6db69`
+> **Terakhir ditinjau:** 2026-11-19 · **HEAD:** `c37d79d`
 > Sumber: `app/src/main/java/com/example/data/DroidCanvasDatabase.kt` (424 baris),
 > `ImageStorageHelper.kt` (189 baris), `DroidCanvasViewModel.kt` (strokes & prefs).
 
@@ -61,27 +61,42 @@ kolom FK.
 |---|---|---|
 | `id` | INTEGER PK autoincrement | |
 | `boardId` | INTEGER | Papan pemilik |
-| `fromItemId`, `toItemId` | INTEGER | Dua item yang dihubungkan (tanpa arah) |
+| `fromItemId`, `toItemId` | INTEGER | Dua ujung yang dihubungkan (tanpa arah) — id gambar ATAU id todo, tergantung kind |
 | `type` | TEXT | `ConnectionType.name` — 8 jenis (lihat `designs/map.md` K3) |
+| `fromKind`, `toKind` | TEXT, default `'ITEM'` | `ITEM`/`TODO` (migrasi 11–12, Todo T5) — FK ke `canvas_items` dibuang karena FK SQLite tidak bisa bersyarat; hapus berantai di repository (transaksi, dibatasi kind) |
 
 Hanya dari/ke/jenis yang disimpan; geometri kurva diturunkan saat render dari
 posisi node (K5).
 
-### Tabel `todos` (migrasi 10–11, Todo berbasis kanvas)
+### Tabel `todos` (migrasi 10–11, Todo berbasis kanvas; bentuk baru K11 di migrasi 12–13)
 
 FK `boardId → boards.id` `ON DELETE CASCADE`; indeks di `boardId`.
 Satu jenis objek lagi di kanvas, sejajar gambar & goresan (langkah 6, T1) —
-bukan mode/tool/tampilan. Lihat `designs/todo.md`.
+bukan mode/tool/tampilan. Lihat `designs/todo.md`. **K11 (2026-11-19):**
+satu todo = **judul + daftar baris** — judul cuma kepala (tidak bisa
+dicentang); baris-barisnya hidup di `todo_items`.
 
 | Kolom | Tipe | Keterangan |
 |---|---|---|
 | `id` | INTEGER PK autoincrement | |
 | `boardId` | INTEGER | Papan pemilik |
-| `text` | TEXT, default `''` | Isi manual (blank todo) |
-| `done` | INTEGER, default 0 | Selesai/belum; selesai = coret + pudar (P2) |
-| `posX`, `posY` | REAL, default 0 | Posisi di Board (ruang kanvas) |
+| `title` | TEXT, default `''` | Judul (dulu `text` — diganti di migrasi 12–13; todo lama direset, tidak dimigrasi) |
+| `posX`, `posY` | REAL, default 0 | Posisi di Board (ruang kanvas) — titik tengah kartu |
 | `mapX`, `mapY` | REAL, default 0 | Posisi node di Map (0,0 = belum diposisikan, sentinel grid seperti item) |
 | `createdAt` | INTEGER | `System.currentTimeMillis()`; urutan load `ORDER BY createdAt ASC` |
+
+### Tabel `todo_items` (migrasi 12–13, K11)
+
+FK `todoId → todos.id` `ON DELETE CASCADE`; indeks di `todoId`. Satu
+baris dalam daftar todo (lihat `designs/todo.md` K11).
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| `id` | INTEGER PK autoincrement | |
+| `todoId` | INTEGER | Todo pemilik |
+| `text` | TEXT, default `''` | Isi baris |
+| `done` | INTEGER, default 0 | Selesai/belum; selesai = coret + pudar (P2, per baris) |
+| `createdAt` | INTEGER | `System.currentTimeMillis()`; urutan baris `ORDER BY createdAt ASC` |
 
 ### DAO — `DroidCanvasDao`
 
@@ -92,17 +107,21 @@ bukan mode/tool/tampilan. Lihat `designs/todo.md`.
 - Edges (`EdgeDao`): `getEdgesForBoard(boardId)` (Flow), insert (`REPLACE`),
   delete, `deleteEdgesForItem`, `deleteEdgesForBoard` (dua terakhir cadangan —
   penghapusan jalan lewat FK CASCADE, lihat `designs/map.md` fase 5).
-- Todos (`TodoDao`, migrasi 10–11): `getTodosForBoard(boardId)` (Flow,
-  `ORDER BY createdAt ASC`), insert (`REPLACE`), update, delete,
-  `deleteTodosForBoard` (cadangan — penghapusan jalan lewat FK CASCADE).
+- Todos (`TodoDao`, migrasi 10–11; bentuk K11 di migrasi 12–13):
+  `getTodosForBoard(boardId)` (Flow, `ORDER BY createdAt ASC`), insert
+  (`REPLACE`), update, delete, `deleteTodosForBoard` (cadangan —
+  penghapusan jalan lewat FK CASCADE); baris: `getTodoItemsForBoard(boardId)`
+  (Flow, subquery todo per papan, `ORDER BY createdAt ASC`), insert/update/
+  delete per `TodoItem`.
 - Tidak ada query pencarian, tidak ada transaksi multi-operasi — `restoreSnapshot`
   (undo) melakukan delete/insert satu per satu.
 
 ### Repository — `DroidCanvasRepository`
 
 Pembungkus tipis satu-lapis di atas DAO, tanpa logika tambahan (juga membungkus
-`EdgeDao` + `TodoDao`, konstruktor kedua dan ketiga). Semua akses Room
-dari ViewModel berjalan di `Dispatchers.IO`.
+`EdgeDao` + `TodoDao`, konstruktor kedua, ketiga, dan keempat — `database`,
+untuk transaksi hapus berantai edge di `deleteCanvasItem`/`deleteTodo`).
+Semua akses Room dari ViewModel berjalan di `Dispatchers.IO`.
 
 ### Riwayat migrasi
 
@@ -118,6 +137,8 @@ dari ViewModel berjalan di `Dispatchers.IO`.
 | 8 → 9 | `canvas_items.isGrayscale` ditambahkan lagi (fitur grayscale, 2026-11-17) |
 | 9 → 10 | `canvas_items.mapX/mapY/note` + tabel `edges` (Map, 2026-11-18) |
 | 10 → 11 | Tabel `todos` (Todo berbasis kanvas, 2026-11-19) |
+| 11 → 12 | Tabel `edges` dibuat ulang: `fromKind`/`toKind`, FK ke `canvas_items` dibuang (Todo T5, 2026-11-19) |
+| 12 → 13 | Tabel `todos` dibuat ulang (tanpa `text`/`done`, `title` saja — todo lama direset) + tabel `todo_items` (K11, 2026-11-19) |
 
 ## Berkas gambar — `filesDir`
 

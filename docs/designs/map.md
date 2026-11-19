@@ -68,7 +68,7 @@ dengan apa".
 | O1 | Penyimpanan posisi node Map | Kolom `mapX`/`mapY` di `CanvasItem` |
 | O2 | Penyimpanan notes | Kolom teks `note` di `CanvasItem` (satu catatan per item) |
 | O3 | Aturan hapus | Hapus gambar → edge + note + posisi Map ikut hapus |
-| O4 | Notes di Board | Tambah/ubah juga di Board (tombol + di bawah gambar terpilih + ikon komentar, 2026-11-19); balon isi catatan tetap Map saja |
+| O4 | Notes di Board | Tambah/ubah juga di Board (tombol + di bawah gambar terpilih, 2026-11-19); **balon isi catatan tampil di Board DAN Map** (2026-11-19, ADR-022) — ikon komentar kecil di Board dihapus |
 | O5 | Arti counter `1/8` | Tidak ditiru di v1 (artinya belum jelas) |
 
 ## 5. Rancangan
@@ -277,6 +277,16 @@ dengan apa".
 > catatan, lihat `nodeHeightPx`); baris Zoom/Pan menampilkan nilai
 > kamera aktif; batas atas skala Fit di Map 10 (Board tetap 3,0).
 > `SidebarContent` kini menerima `viewMode` sebagai parameter.
+> (d) **Bubble note tampil di Board + thumbnail Map ikut rasio media
+> (2026-11-19, ADR-022)** — (d1) Balon isi note kini tampil juga di
+> Board (di bawah gambar, 56dp, ketuk → ubah note; posisi mengikuti
+> tombol +); ikon komentar kecil di atas gambar dihapus. O4 direvisi:
+> balon di Board DAN Map. (d2) Thumbnail node Map tidak lagi kotak
+> tetap: bila `mapImageFull` nyala, tinggi thumbnail = 180dp ×
+> (tinggi ÷ lebar gambar) — gambar rasio layar ponsel jadi node tinggi
+> yang tampil utuh selebar 180dp, bukan mengecil di kotak 120dp;
+> bila mati (Crop), tetap 120dp. Tinggi kartu = thumbnail + 68dp;
+> `fitToContent` Map memakai tinggi node sebenarnya.
 
 ## 6. Yang sengaja tidak dirancang di sini
 

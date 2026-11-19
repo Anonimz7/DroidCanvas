@@ -107,10 +107,11 @@ data class Edge(
     val toKind: String = EdgeEndpointKind.ITEM
 )
 
-// Todo berbasis kanvas (langkah 6, T1): satu jenis objek lagi di kanvas,
-// sejajar gambar & goresan — bukan mode/tool/tampilan (K1). Satu todo
-// milik satu papan; posisi Board (posX/posY) + posisi Map (mapX/mapY)
-// mengikuti pola CanvasItem. Kartu todo diisi manual (blank todo, K3).
+// Todo berbasis kanvas (langkah 6, T1; R1 2026-11-19, K11): satu todo =
+// SATU JUDUL + daftar baris (TodoItem) di bawahnya — bukan lagi 1 entri.
+// Judul cuma kepala (tidak bisa dicentang); yang dicentang tiap baris.
+// Posisi Board (posX/posY) + posisi Map (mapX/mapY) mengikuti pola
+// CanvasItem. Kartu todo diisi manual (blank todo, K3).
 @Entity(
     tableName = "todos",
     foreignKeys = [
@@ -126,12 +127,34 @@ data class Edge(
 data class Todo(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val boardId: Int,
-    val text: String = "",
-    val done: Boolean = false,
+    val title: String = "",
     val posX: Float = 0f,       // X coordinate in canvas space (Board)
     val posY: Float = 0f,       // Y coordinate in canvas space (Board)
     val mapX: Float = 0f,       // X coordinate of the node in Map view (own layout, like CanvasItem.mapX)
     val mapY: Float = 0f,       // Y coordinate of the node in Map view (own layout, like CanvasItem.mapY)
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+// Satu baris di bawah judul todo (R1, K11): teks + centang sendiri.
+// Milik satu Todo (FK CASCADE — hapus judul ikut menghapus barisnya);
+// urutan tampil = createdAt (baris baru selalu di bawah).
+@Entity(
+    tableName = "todo_items",
+    foreignKeys = [
+        ForeignKey(
+            entity = Todo::class,
+            parentColumns = ["id"],
+            childColumns = ["todoId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index(value = ["todoId"])]
+)
+data class TodoItem(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val todoId: Int,
+    val text: String = "",
+    val done: Boolean = false,
     val createdAt: Long = System.currentTimeMillis()
 )
 
@@ -210,9 +233,24 @@ interface TodoDao {
 
     @Query("DELETE FROM todos WHERE boardId = :boardId")
     suspend fun deleteTodosForBoard(boardId: Int)
+
+    // Baris di bawah judul (R1, K11): milik satu todo; urutan tampil =
+    // createdAt (baris baru di bawah). Subquery supaya aliran mengikuti
+    // papan aktif, bukan satu todo saja.
+    @Query("SELECT * FROM todo_items WHERE todoId IN (SELECT id FROM todos WHERE boardId = :boardId) ORDER BY createdAt ASC")
+    fun getTodoItemsForBoard(boardId: Int): Flow<List<TodoItem>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTodoItem(item: TodoItem): Long
+
+    @Update
+    suspend fun updateTodoItem(item: TodoItem)
+
+    @Delete
+    suspend fun deleteTodoItem(item: TodoItem)
 }
 
-@Database(entities = [Board::class, CanvasItem::class, Edge::class, Todo::class], version = 12, exportSchema = false)
+@Database(entities = [Board::class, CanvasItem::class, Edge::class, Todo::class, TodoItem::class], version = 13, exportSchema = false)
 abstract class DroidCanvasDatabase : RoomDatabase() {
     abstract fun droidCanvasDao(): DroidCanvasDao
     abstract fun edgeDao(): EdgeDao
@@ -401,6 +439,43 @@ abstract class DroidCanvasDatabase : RoomDatabase() {
             }
         }
 
+        // Todo jadi judul + daftar baris (R1, K11): `todos` dibuat ulang
+        // tanpa kolom `done` (judul tidak bisa dicentang) dan `text` jadi
+        // `title`; tabel baru `todo_items` menampung baris-barisnya.
+        // Baris todo LAMA dibuang (keputusan user 2026-11-19: "biarin aja
+        // toh nanti direset" — tidak dimigrasi). DROP aman: tidak ada tabel
+        // lain yang ber-FK ke `todos` (FK edge ke todo sudah dibuang T5).
+        val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP TABLE IF EXISTS `todos`")
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `todos` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `boardId` INTEGER NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `posX` REAL NOT NULL,
+                        `posY` REAL NOT NULL,
+                        `mapX` REAL NOT NULL,
+                        `mapY` REAL NOT NULL,
+                        `createdAt` INTEGER NOT NULL,
+                        FOREIGN KEY(`boardId`) REFERENCES `boards`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_todos_boardId` ON `todos` (`boardId`)")
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `todo_items` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `todoId` INTEGER NOT NULL,
+                        `text` TEXT NOT NULL,
+                        `done` INTEGER NOT NULL,
+                        `createdAt` INTEGER NOT NULL,
+                        FOREIGN KEY(`todoId`) REFERENCES `todos`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_todo_items_todoId` ON `todo_items` (`todoId`)")
+            }
+        }
+
         fun getDatabase(context: Context): DroidCanvasDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -408,7 +483,7 @@ abstract class DroidCanvasDatabase : RoomDatabase() {
                     DroidCanvasDatabase::class.java,
                     "droid_canvas_database"
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance
@@ -471,11 +546,21 @@ class DroidCanvasRepository(
 
     // Hapus todo + garisnya dalam SATU transaksi (T5) — cermin
     // deleteCanvasItem di atas; garis ke/dari todo ikut hilang (O3 untuk
-    // todo). Hapus papan tidak perlu ini: FK boardId di `edges` tetap ada.
+    // todo). Baris-baris todo ikut hilang via FK CASCADE di `todo_items`.
+    // Hapus papan tidak perlu ini: FK boardId di `edges` tetap ada.
     suspend fun deleteTodo(todo: Todo) = database.withTransaction {
         edgeDao.deleteEdgesForTodo(todo.id)
         todoDao.deleteTodo(todo)
     }
 
     suspend fun deleteTodosForBoard(boardId: Int) = todoDao.deleteTodosForBoard(boardId)
+
+    // Baris todo (R1, K11): thin pass-throughs, seperti todos di atas.
+    fun getTodoItemsForBoard(boardId: Int): Flow<List<TodoItem>> = todoDao.getTodoItemsForBoard(boardId)
+
+    suspend fun insertTodoItem(item: TodoItem): Long = todoDao.insertTodoItem(item)
+
+    suspend fun updateTodoItem(item: TodoItem) = todoDao.updateTodoItem(item)
+
+    suspend fun deleteTodoItem(item: TodoItem) = todoDao.deleteTodoItem(item)
 }

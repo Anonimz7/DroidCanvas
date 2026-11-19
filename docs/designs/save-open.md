@@ -135,6 +135,18 @@ Skema formal + contoh lengkap: [`designs/manifest-schema.md`](manifest-schema.md
     `formatVersion` yang tak dikenal). Sebaliknya, arsip baru yang
     dibuka aplikasi lama (pra-Map): kunci JSON yang tak dikenal
     diabaikan parser — papan terbuka tanpa data Map.
+- Data Todo (T6, belum dibangun — bentuk diputuskan K11, 2026-11-19):
+  - `todos[]` opsional: tiap entri `title`, `posX`/`posY`, `mapX`/`mapY`,
+    `createdAt`, + `items[]` bersarang (tiap baris: `text`, `done`,
+    `createdAt`); todo tidak punya berkas gambar. Todo butuh `uuid`
+    sendiri (seperti item) sebagai kunci join edge + baris.
+  - Edge manifest bertambah `fromKind`/`toKind` (`ITEM`/`TODO`, default
+    `ITEM` bila absen — arsip lama tetap bisa dibuka); validasi Open:
+    ujung TODO harus merujuk ke todo yang ada di `todos[]`, kind harus
+    dikenal. Hari ini Saver T5 **melewati** garis ke/dari todo (manifest
+    belum punya `todos[]`) — ditutup T6.
+  - Kompatibilitas mundur: arsip tanpa `todos[]` terbuka bersih (tanpa
+    todo); `formatVersion` tetap 1.
 - `isGrayscale` dicantumkan sekarang supaya format tidak berubah saat
   fitur grayscale jadi (lihat `grayscale.md`).
 - `strokes` ditulis dalam bentuk JSON di manifest, bukan menyalin

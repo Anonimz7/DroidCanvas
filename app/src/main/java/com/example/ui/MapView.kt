@@ -36,6 +36,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -73,6 +74,7 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -83,6 +85,7 @@ import com.example.data.ConnectionType
 import com.example.data.Edge
 import com.example.data.EdgeEndpointKind
 import com.example.data.Todo
+import com.example.data.TodoItem
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -97,15 +100,59 @@ private val noteGap = 8.dp
 private val noteBubbleHeight = 56.dp
 private val noteButtonSize = 36.dp
 
+// Ukuran-ukuran tetap isi kartu todo (R1, K11) — dipakai TodoListContent
+// (render) dan todoCardHeightDp (grid/hit-test), supaya keduanya tidak
+// pernah drift: padding 10dp × 2 + judul 24dp + pemisah 13dp (6+1+6) +
+// baris 36dp × N + jeda 8dp + tombol + 28dp.
+private val todoCardPadding = 10.dp
+private val todoTitleHeight = 24.dp
+private val todoDividerBlockHeight = 13.dp
+private val todoRowHeight = 36.dp
+private val todoAddRowHeight = 28.dp
+
+// Tinggi thumbnail node gambar (R3): bila gambar utuh (Fit, default),
+// kotak menyesuaikan rasio media — lebar tetap 180dp, tinggi =
+// 180dp × (tinggi/lebar gambar) — jadi screenshot ponsel yang tinggi
+// tampil utuh selebar 180dp, bukan mengecil di kotak 120dp. Bila Crop,
+// tetap 120dp seperti dulu. width/height CanvasItem = dimensi asli
+// piksel gambar (lihat addImages di ViewModel).
+fun mapThumbHeightDp(item: CanvasItem, imageFull: Boolean): Dp =
+    if (imageFull && item.width > 0f && item.height > 0f) {
+        (180f * item.height / item.width).dp
+    } else {
+        120.dp
+    }
+
+// Tinggi kartu node gambar = thumbnail + baris nama/label (~68dp —
+// selisih yang sama seperti konstanta lama cardHeight 188dp untuk
+// thumbnail 120dp). Dipakai MapView (grid/hit-test) dan
+// ViewModel.fitToContent (Map) supaya ketiganya selalu sama.
+fun mapCardHeightDp(item: CanvasItem, imageFull: Boolean): Dp =
+    mapThumbHeightDp(item, imageFull) + 68.dp
+
+// Tinggi kartu todo (R1, K11) dari jumlah baris — dipakai MapView
+// (grid/hit-test) dan ViewModel.fitToContent (Map). Harus sama dengan
+// yang dirender TodoListContent di bawah (lihat ukuran-ukuran di atas).
+fun todoCardHeightDp(itemCount: Int): Dp =
+    todoCardPadding * 2 + todoTitleHeight + todoDividerBlockHeight +
+        todoRowHeight * itemCount + 8.dp + todoAddRowHeight
+
+// Status dialog baris todo (R1, K11): dipakai Board (DroidCanvasScreen)
+// dan Map (di sini) — item null = tambah baris baru, berisi = ubah.
+data class TodoItemDialogState(val todoId: Int, val item: TodoItem?)
+
 // Map view (fase 3) — second presentation over the same Board data (K1):
 // one node card per image of the current board, connected by typed edges.
 // The Map is as free as the Board (K8): its own pan/zoom camera (separate
 // from the Board camera, persisted per board in the ViewModel) and nodes
 // that can be dragged anywhere. The grid from fase 2 is only the initial
 // placement for nodes that were never positioned (mapX == 0f && mapY == 0f).
-// Todos (T5) are nodes too: the same card as on the Board, 180dp wide and
-// 96dp tall, with ports — so a todo can be an edge endpoint (dot-to-dot,
-// K7) and can be dragged; its checkbox toggles done.
+// Todos (T5, K7; R1, K11) are nodes too: the same list card as on the
+// Board (TodoListContent — judul + daftar + tombol +), 180dp wide, tinggi
+// ikut jumlah baris, with ports at the title center — so a todo can be an
+// edge endpoint (dot-to-dot) and can be dragged. Ketuk judul/baris/+
+// membuka dialognya masing-masing (dialog hidup di MapView ini);
+// centang di tiap baris men-toggle baris itu.
 //
 // Touch disambiguation (T7) — one awaitEachGesture loop for the whole Map
 // area, like the Board background handler, so no two detectors fight over
@@ -124,6 +171,7 @@ fun MapView(
     items: List<CanvasItem>,
     edges: List<Edge>,
     todos: List<Todo>,
+    todoItems: List<TodoItem>,
     viewModel: DroidCanvasViewModel,
     modifier: Modifier = Modifier
 ) {
@@ -133,24 +181,21 @@ fun MapView(
     // viewModel.mapImageFull (opsi di Settings, default utuh).
     val imageFull = viewModel.mapImageFull
     val cardWidth = 180.dp
-    // Thumbnail 120dp + name/label rows (~52dp). Grid rows are NOT a fixed
-    // height: each row is as tall as its tallest node (see gridRowTopYPx),
-    // so a noted node (card + bubble + button) never overlaps the row below.
-    val cardHeight = 188.dp
-    // Todo node (T5): kartu kompak — centang + teks (maks 2 baris) — tanpa
-    // kontrol note di bawahnya; port di tengah vertikal kartu.
-    val todoCardHeight = 96.dp
-    val todoPortCenterYOffset = 48.dp
+    // Tinggi kartu TIDAK lagi satu konstanta (R3): thumbnail gambar ikut
+    // rasio media (mapThumbHeightDp) dan kartu todo ikut jumlah baris
+    // (todoCardHeightDp) — dihitung per node di buildNodes di bawah.
+    // Grid rows are NOT a fixed height: each row is as tall as its tallest
+    // node (see gridRowTopYPx), so a noted/tall node never overlaps the
+    // row below.
     val cellGap = 16.dp
     val startPadding = 16.dp
-    // Port center from the card top: the 12dp port sits at y = 54dp, so its
-    // center is at 60dp. Port centers are (x, y + 60dp) and (x + 180dp, y + 60dp).
+    // Port center default dari atas kartu (dipakai bila port node tidak
+    // ditemukan di peta — seharusnya tidak terjadi; tiap node menyimpan
+    // portYOffsetPx-nya sendiri). Node gambar lama: tengah thumbnail
+    // 120dp = 60dp.
     val portCenterYOffset = 60.dp
 
     val cardWidthPx = with(density) { cardWidth.toPx() }
-    val cardHeightPx = with(density) { cardHeight.toPx() }
-    val todoCardHeightPx = with(density) { todoCardHeight.toPx() }
-    val todoPortYOffsetPx = with(density) { todoPortCenterYOffset.toPx() }
     val cellWidthPx = with(density) { (cardWidth + cellGap).toPx() }
     val cellGapPx = with(density) { cellGap.toPx() }
     val startXPx = with(density) { startPadding.toPx() }
@@ -173,6 +218,7 @@ fun MapView(
     val currentItems by rememberUpdatedState(items)
     val currentEdges by rememberUpdatedState(edges)
     val currentTodos by rememberUpdatedState(todos)
+    val currentTodoItems by rememberUpdatedState(todoItems)
 
     // Temp edge line while creating an edge (content coords), the pending
     // (from, to) endpoint pair for the type picker, and the edge awaiting delete.
@@ -185,6 +231,14 @@ fun MapView(
     var noteDialogItem by remember { mutableStateOf<CanvasItem?>(null) }
     var noteDraft by remember { mutableStateOf("") }
 
+    // Dialog judul + baris todo (R1, K11): judul dari ketuk judul kartu;
+    // baris dari ketuk teks baris / tambah dari tombol + di kartu.
+    var todoTitleDialog by remember { mutableStateOf<Todo?>(null) }
+    var todoTitleDraft by remember { mutableStateOf("") }
+    var todoItemDialog by remember { mutableStateOf<TodoItemDialogState?>(null) }
+    var todoItemDraft by remember { mutableStateOf("") }
+    var todoItemToDelete by remember { mutableStateOf<TodoItem?>(null) }
+
     val textMeasurer = rememberTextMeasurer()
     val labelStyle = TextStyle(
         fontSize = 12.sp,
@@ -196,21 +250,28 @@ fun MapView(
 
     // Semua node (gambar + todo) dalam SATU daftar terurut — gambar dulu,
     // lalu todo — supaya slot grid awal tidak bertumpuk (T5). Dipakai badan
-    // MapView dan loop gesture (positionsOf di bawah).
-    fun buildNodes(itemList: List<CanvasItem>, todoList: List<Todo>): List<MapNode> =
+    // MapView dan loop gesture (positionsOf di bawah). Tinggi kartu per
+    // node (R1/R3): gambar ikut rasio thumbnail, todo ikut jumlah baris;
+    // port gambar di tengah thumbnail, port todo di tengah judul.
+    fun buildNodes(itemList: List<CanvasItem>, todoList: List<Todo>, itemRows: List<TodoItem>): List<MapNode> =
         itemList.map { item ->
+            val cardH = with(density) { mapCardHeightDp(item, imageFull).toPx() }
             MapNode(
                 id = item.id, kind = EdgeEndpointKind.ITEM,
                 mapX = item.mapX, mapY = item.mapY,
-                heightPx = nodeHeightPx(item, cardHeightPx, noteGapPx, noteBubbleHeightPx, noteButtonSizePx),
-                cardHeightPx = cardHeightPx, portYOffsetPx = portYOffsetPx
+                heightPx = nodeHeightPx(item, cardH, noteGapPx, noteBubbleHeightPx, noteButtonSizePx),
+                cardHeightPx = cardH,
+                portYOffsetPx = with(density) { (mapThumbHeightDp(item, imageFull) / 2).toPx() }
             )
         } + todoList.map { todo ->
+            val rows = itemRows.count { it.todoId == todo.id }
+            val cardH = with(density) { todoCardHeightDp(rows).toPx() }
             MapNode(
                 id = todo.id, kind = EdgeEndpointKind.TODO,
                 mapX = todo.mapX, mapY = todo.mapY,
-                heightPx = todoCardHeightPx,
-                cardHeightPx = todoCardHeightPx, portYOffsetPx = todoPortYOffsetPx
+                heightPx = cardH,
+                cardHeightPx = cardH,
+                portYOffsetPx = with(density) { (todoCardPadding + todoTitleHeight / 2).toPx() }
             )
         }
 
@@ -238,7 +299,7 @@ fun MapView(
         // Node top-left positions in Map content coords (stored mapX/mapY,
         // or a deterministic grid slot when never positioned). Row tops
         // come from gridRowTopYPx, so rows grow with their tallest node.
-        val allNodes = buildNodes(items, todos)
+        val allNodes = buildNodes(items, todos, todoItems)
         val positions = positionsOf(allNodes, columns)
         val portYByEndpoint = allNodes.associate { MapEndpoint(it.kind, it.id) to it.portYOffsetPx }
 
@@ -300,7 +361,9 @@ fun MapView(
                                 val pos = posById[MapEndpoint(EdgeEndpointKind.ITEM, item.id)] ?: continue
                                 val topLeft = toScreen(pos)
                                 val hasNote = item.note.isNotBlank()
-                                val bubbleTop = topLeft.y + (cardHeightPx + noteGapPx) * scaleAtDown
+                                // Tinggi kartu per item (R3): thumbnail ikut rasio media.
+                                val itemCardHeightPx = with(density) { mapCardHeightDp(item, imageFull).toPx() }
+                                val bubbleTop = topLeft.y + (itemCardHeightPx + noteGapPx) * scaleAtDown
                                 if (hasNote) {
                                     val bubbleBottom = bubbleTop + noteBubbleHeightPx * scaleAtDown
                                     if (screenPos.x in topLeft.x..(topLeft.x + cardWidthPx * scaleAtDown) &&
@@ -339,7 +402,7 @@ fun MapView(
 
                         val startList = currentItems
                         val startTodoList = currentTodos
-                        val startNodes = buildNodes(startList, startTodoList)
+                        val startNodes = buildNodes(startList, startTodoList, currentTodoItems)
                         val startPositions = positionsOf(startNodes, currentColumns)
                         val sourceEndpoint = portEndpointAt(downScreen, startNodes, startPositions)
                         val controlsItem = if (sourceEndpoint == null) controlsAt(downScreen, startList, startPositions) else null
@@ -479,7 +542,7 @@ fun MapView(
                                 tempEdgeEnd = null
                                 val endList = currentItems
                                 val endTodoList = currentTodos
-                                val endNodes = buildNodes(endList, endTodoList)
+                                val endNodes = buildNodes(endList, endTodoList, currentTodoItems)
                                 val endPositions = positionsOf(endNodes, currentColumns)
                                 // The release target is the whole visual
                                 // node (card + note controls below it), not
@@ -496,7 +559,7 @@ fun MapView(
                             MapDragMode.PAN -> {
                                 if (!pastSlop) {
                                     // Tap: hit-test the edge curves.
-                                    val endNodes = buildNodes(currentItems, currentTodos)
+                                    val endNodes = buildNodes(currentItems, currentTodos, currentTodoItems)
                                     val endPositions = positionsOf(endNodes, currentColumns)
                                     val endPortY = endNodes.associate { MapEndpoint(it.kind, it.id) to it.portYOffsetPx }
                                     val hit = edgeAt(downScreen, currentEdges, endPositions, endPortY)
@@ -595,12 +658,25 @@ fun MapView(
                         }
                     )
                 }
-                // Todo nodes (T5): kartu kompak + port, sejajar node gambar.
+                // Todo nodes (T5; R1, K11): kartu daftar + port, sejajar node gambar.
                 todos.forEach { todo ->
                     val position = positions[MapEndpoint(EdgeEndpointKind.TODO, todo.id)] ?: return@forEach
                     TodoNodeCard(
                         todo = todo,
-                        viewModel = viewModel,
+                        items = todoItems.filter { it.todoId == todo.id },
+                        onTitleClick = { clicked ->
+                            todoTitleDialog = clicked
+                            todoTitleDraft = clicked.title
+                        },
+                        onRowClick = { item ->
+                            todoItemDialog = TodoItemDialogState(todo.id, item)
+                            todoItemDraft = item.text
+                        },
+                        onToggleItem = { viewModel.toggleTodoItem(it) },
+                        onAddClick = { clicked ->
+                            todoItemDialog = TodoItemDialogState(clicked.id, null)
+                            todoItemDraft = ""
+                        },
                         modifier = Modifier.offset {
                             IntOffset(position.x.roundToInt(), position.y.roundToInt())
                         }
@@ -721,9 +797,10 @@ fun MapView(
 
         // Note dialog (fase 4, T8 / K6): add or edit the note of one node.
         // The draft is prefilled with the current note; saving blank text
-        // clears the note (no bubble). The note bubble shows only in Map
-        // (O4); adding/editing is also possible from the Board (+ button
-        // under the selected image, same updateNote).
+        // clears the note (no bubble). The note bubble shows in Map AND
+        // on the Board (O4 direvisi R1 — bubble Board di CanvasItemView);
+        // adding/editing is also possible from the Board (+ button under
+        // the selected image, same updateNote).
         val noteItem = noteDialogItem
         if (noteItem != null) {
             AlertDialog(
@@ -769,6 +846,156 @@ fun MapView(
                 dismissButton = {
                     TextButton(onClick = { noteDialogItem = null }) {
                         Text("Cancel")
+                    }
+                }
+            )
+        }
+
+        // Dialog judul todo (R1, K11): dari ketuk judul kartu todo.
+        val titleTodo = todoTitleDialog
+        if (titleTodo != null) {
+            AlertDialog(
+                onDismissRequest = { todoTitleDialog = null },
+                title = {
+                    Text(
+                        text = if (titleTodo.title.isBlank()) "Judul todo" else "Edit judul",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                text = {
+                    Column(modifier = Modifier.padding(top = 8.dp)) {
+                        OutlinedTextField(
+                            value = todoTitleDraft,
+                            onValueChange = { todoTitleDraft = it },
+                            label = { Text("Judul") },
+                            placeholder = { Text("Tulis judul...") },
+                            minLines = 1,
+                            maxLines = 2,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("map_todo_title_input")
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val fresh = currentTodos.find { it.id == titleTodo.id } ?: titleTodo
+                            viewModel.updateTodo(fresh, todoTitleDraft)
+                            todoTitleDialog = null
+                        },
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("Save", fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { todoTitleDialog = null }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
+        // Dialog baris todo (R1, K11): tambah (item null) atau ubah baris.
+        // Hapus baris lewat tombol Hapus di sini → konfirmasi terpisah
+        // (baris belum ikut undo, T7 — sama seperti hapus todo).
+        val itemDialog = todoItemDialog
+        if (itemDialog != null) {
+            val editing = itemDialog.item
+            AlertDialog(
+                onDismissRequest = { todoItemDialog = null },
+                title = {
+                    Text(
+                        text = if (editing == null) "Tambah baris" else "Ubah baris",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                text = {
+                    Column(modifier = Modifier.padding(top = 8.dp)) {
+                        OutlinedTextField(
+                            value = todoItemDraft,
+                            onValueChange = { todoItemDraft = it },
+                            label = { Text("Baris") },
+                            placeholder = { Text("Tulis baris todo...") },
+                            minLines = 1,
+                            maxLines = 3,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("map_todo_item_input")
+                        )
+                        if (editing != null) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            TextButton(
+                                onClick = { todoItemToDelete = editing },
+                                modifier = Modifier.align(Alignment.End)
+                            ) {
+                                Text("Hapus baris", color = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            if (editing == null) {
+                                viewModel.addTodoItem(itemDialog.todoId, todoItemDraft)
+                            } else {
+                                val fresh = currentTodoItems.find { it.id == editing.id } ?: editing
+                                viewModel.updateTodoItem(fresh, todoItemDraft)
+                            }
+                            todoItemDialog = null
+                        },
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("Save", fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { todoItemDialog = null }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
+        // Konfirmasi hapus baris todo (R1, K11).
+        val doomedItem = todoItemToDelete
+        if (doomedItem != null) {
+            AlertDialog(
+                onDismissRequest = { todoItemToDelete = null },
+                title = {
+                    Text(
+                        text = "Hapus baris?",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                text = {
+                    Text("Baris ini akan dihapus permanen.")
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            viewModel.deleteTodoItem(doomedItem)
+                            todoItemToDelete = null
+                            todoItemDialog = null
+                        },
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("Hapus", fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { todoItemToDelete = null }) {
+                        Text("Batal")
                     }
                 }
             )
@@ -929,7 +1156,8 @@ fun MapNodeCard(
 ) {
     // The ports sit OUTSIDE the Card (half past its left/right edge) so they
     // are not clipped by the Card's rounded shape. They are centered on the
-    // thumbnail (120dp tall -> center 60dp, minus half the 12dp port = 54dp).
+    // thumbnail (tengah thumbnail = setengah mapThumbHeightDp, minus half
+    // the 12dp port) — thumbnail ikut rasio media (R3).
     // Below the card (fase 4, K6): the note bubble (only when the item has a
     // note) and the circular + button, which both open the note dialog. The
     // below-card content is part of the node visual but NOT part of the
@@ -957,7 +1185,7 @@ fun MapNodeCard(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(120.dp)
+                            .height(mapThumbHeightDp(item, imageFull))
                             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                     ) {
                         AsyncImage(
@@ -966,9 +1194,11 @@ fun MapNodeCard(
                                 .crossfade(true)
                                 .build(),
                             contentDescription = name,
-                            // Utuh (Fit): seluruh gambar kelihatan, tanpa
-                            // potong; mati (Crop): mengisi kotak 120dp.
-                            // Opsi di Settings (mapImageFull, default utuh).
+                            // Utuh (Fit): kotak menyesuaikan rasio media
+                            // (R3) — seluruh gambar kelihatan, tanpa potong
+                            // dan tanpa mengecil. Mati (Crop): mengisi
+                            // kotak 120dp. Opsi di Settings (mapImageFull,
+                            // default utuh).
                             contentScale = if (imageFull) ContentScale.Fit else ContentScale.Crop,
                             colorFilter = if (item.isGrayscale) ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) }) else null,
                             modifier = Modifier
@@ -1057,7 +1287,7 @@ fun MapNodeCard(
         Box(
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .offset(x = (-6).dp, y = 54.dp)
+                .offset(x = (-6).dp, y = mapThumbHeightDp(item, imageFull) / 2 - 6.dp)
                 .size(12.dp)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.surface)
@@ -1068,7 +1298,7 @@ fun MapNodeCard(
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .offset(x = 6.dp, y = 54.dp)
+                .offset(x = 6.dp, y = mapThumbHeightDp(item, imageFull) / 2 - 6.dp)
                 .size(12.dp)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.surface)
@@ -1078,18 +1308,119 @@ fun MapNodeCard(
     }
 }
 
-// Todo node di Map (T5, K7): tampil seperti kartu todo di Board (centang
-// + teks) tapi dalam lebar node Map 180dp dan tinggi tetap 96dp, plus port
-// di kiri/kanan seperti node gambar — jadi bisa jadi ujung edge
-// (dot-to-dot). Ketuk centang mencentang; ketuk kartu sendiri tidak
-// membuka apa-apa (edit teks tetap dari Board, seperti ketuk node gambar
-// yang no-op) — loop gesture Map memang no-op untuk ketuk tanpa gerak,
-// jadi centang tidak bentrok dengannya. Drag kartu menggeser node (loop
-// NODE_DRAG); tidak ada menu long-press di Map.
+// Isi kartu todo (R1, K11) — dipakai Board (TodoCardView) dan Map
+// (TodoNodeCard) supaya keduanya tampil sama persis ("Seperti board"):
+// judul tebal 1 baris + garis pemisah + baris-baris (centang + teks) +
+// tombol + rata kanan di bawah daftar. Ketuk judul → ubah judul; ketuk
+// teks baris → ubah baris; centang → toggle; + → tambah baris. Ketuk
+// anak (judul/baris/centang/+) ditangani anak dulu — gesture geser kartu
+// di parent melewatkan sentuhan yang sudah dikonsumsi anak (pola yang
+// sama seperti centang di T4). Semua baris punya tinggi tetap, jadi tinggi
+// kartu = todoCardHeightDp(jumlah baris) — lihat ukuran-ukuran di atas.
+@Composable
+fun TodoListContent(
+    todo: Todo,
+    items: List<TodoItem>,
+    onTitleClick: (Todo) -> Unit,
+    onRowClick: (TodoItem) -> Unit,
+    onToggleItem: (TodoItem) -> Unit,
+    onAddClick: (Todo) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier.padding(todoCardPadding)) {
+        Text(
+            text = if (todo.title.isBlank()) "Todo kosong" else todo.title,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            color = if (todo.title.isBlank()) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(todoTitleHeight)
+                .clickable { onTitleClick(todo) }
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        HorizontalDivider(
+            thickness = 1.dp,
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        items.forEach { item ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(todoRowHeight)
+                    .clickable { onRowClick(item) },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                IconButton(
+                    onClick = { onToggleItem(item) },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = if (item.done) Icons.Default.CheckBox else Icons.Default.CheckBoxOutlineBlank,
+                        contentDescription = if (item.done) "Tandai belum selesai" else "Tandai selesai",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                Text(
+                    text = if (item.text.isBlank()) "Baris kosong" else item.text,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textDecoration = if (item.done) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
+                    color = MaterialTheme.colorScheme.onSurface.copy(
+                        alpha = if (item.done || item.text.isBlank()) 0.5f else 1f
+                    ),
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(todoAddRowHeight),
+            contentAlignment = Alignment.CenterEnd
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(todoAddRowHeight)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primaryContainer)
+                    .clickable { onAddClick(todo) },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Tambah baris todo",
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+    }
+}
+
+// Todo node di Map (T5, K7; R1, K11): tampil seperti kartu todo di Board
+// (TodoListContent di atas), lebar node Map 180dp, tinggi ikut jumlah
+// baris, plus port di kiri/kanan setinggi tengah judul — jadi bisa jadi
+// ujung edge (dot-to-dot). Ketuk judul → ubah judul; ketuk teks baris →
+// ubah baris; centang → toggle baris; + → tambah baris. Dialog-dialognya
+// hidup di MapView (di atas), seperti dialog note. Ketuk kartu sendiri
+// tidak membuka apa-apa; drag kartu menggeser node (loop NODE_DRAG);
+// tidak ada menu long-press di Map.
 @Composable
 fun TodoNodeCard(
     todo: Todo,
-    viewModel: DroidCanvasViewModel,
+    items: List<TodoItem>,
+    onTitleClick: (Todo) -> Unit,
+    onRowClick: (TodoItem) -> Unit,
+    onToggleItem: (TodoItem) -> Unit,
+    onAddClick: (Todo) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -1107,47 +1438,23 @@ fun TodoNodeCard(
                 1.dp,
                 MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
             ),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(96.dp)
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                IconButton(
-                    onClick = { viewModel.toggleTodo(todo) },
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(
-                        imageVector = if (todo.done) Icons.Default.CheckBox else Icons.Default.CheckBoxOutlineBlank,
-                        contentDescription = if (todo.done) "Mark as not done" else "Mark as done",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-                Text(
-                    text = if (todo.text.isBlank()) "Todo kosong" else todo.text,
-                    color = if (todo.done || todo.text.isBlank()) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onSurface,
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    textDecoration = if (todo.done) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
-                    modifier = Modifier.weight(1f)
-                )
-            }
+            TodoListContent(
+                todo = todo,
+                items = items,
+                onTitleClick = onTitleClick,
+                onRowClick = onRowClick,
+                onToggleItem = onToggleItem,
+                onAddClick = onAddClick
+            )
         }
-        // Left port — anchor for edge creation (fase 3); visual only here,
-        // the gesture is handled by the MapView pointerInput. Centered
-        // vertically on the 96dp card (center 48dp, minus half the 12dp
-        // port = 42dp).
+        // Port kiri/kanan setinggi tengah judul (padding 10dp + setengah
+        // judul 24dp = 22dp dari atas kartu, minus setengah port 12dp).
         Box(
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .offset(x = (-6).dp, y = 42.dp)
+                .offset(x = (-6).dp, y = 16.dp)
                 .size(12.dp)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.surface)
@@ -1158,7 +1465,7 @@ fun TodoNodeCard(
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .offset(x = 6.dp, y = 42.dp)
+                .offset(x = 6.dp, y = 16.dp)
                 .size(12.dp)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.surface)

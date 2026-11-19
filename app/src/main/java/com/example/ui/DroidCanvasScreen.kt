@@ -117,7 +117,6 @@ import androidx.compose.material.icons.filled.Redo
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -127,6 +126,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -213,6 +213,7 @@ import com.example.BuildConfig
 import com.example.data.Board
 import com.example.data.CanvasItem
 import com.example.data.Todo
+import com.example.data.TodoItem
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -251,6 +252,7 @@ fun DroidCanvasScreen(
     val edges by viewModel.edges.collectAsState()
     val drawingStrokes by viewModel.drawingStrokes.collectAsState()
     val todos by viewModel.todos.collectAsState()
+    val todoItems by viewModel.todoItems.collectAsState()
     val selectedItemId by viewModel.selectedItemId.collectAsState()
     val isMultiSelectMode by viewModel.isMultiSelectMode.collectAsState()
     val selectedItemIds by viewModel.selectedItemIds.collectAsState()
@@ -279,9 +281,14 @@ fun DroidCanvasScreen(
     // terbuka + draf teksnya (pola yang sama seperti MapView).
     var boardNoteItem by remember { mutableStateOf<CanvasItem?>(null) }
     var boardNoteDraft by remember { mutableStateOf("") }
-    // Todo Board (T4): todo yang dialog isi teksnya terbuka + drafnya.
-    var boardTodoTextId by remember { mutableStateOf<Long?>(null) }
-    var boardTodoTextDraft by remember { mutableStateOf("") }
+    // Todo Board (T4): todo yang dialog isi judulnya terbuka + drafnya.
+    var boardTodoTitleId by remember { mutableStateOf<Long?>(null) }
+    var boardTodoTitleDraft by remember { mutableStateOf("") }
+    // Dialog baris todo Board (R1, K11): tambah/ubah baris dari kartu todo
+    // (cermin dialog yang sama di MapView).
+    var todoItemDialog by remember { mutableStateOf<TodoItemDialogState?>(null) }
+    var todoItemDraft by remember { mutableStateOf("") }
+    var todoItemToDelete by remember { mutableStateOf<TodoItem?>(null) }
     var cropTargetItem by remember { mutableStateOf<CanvasItem?>(null) }
 
     var showEmptyState by remember { mutableStateOf(false) }
@@ -719,15 +726,29 @@ fun DroidCanvasScreen(
                             )
                         }
 
-                        // Render kartu todo di Board (langkah 6, T4) — di
-                        // ruang kanvas yang sama dengan gambar.
+                        // Render kartu todo di Board (langkah 6, T4; R1,
+                        // K11: judul + daftar) — di ruang kanvas yang sama
+                        // dengan gambar.
                         todos.forEach { todo ->
                             TodoCardView(
                                 todo = todo,
+                                items = todoItems.filter { it.todoId == todo.id },
                                 viewModel = viewModel,
                                 onEditClick = {
-                                    boardTodoTextId = it.id.toLong()
-                                    boardTodoTextDraft = it.text
+                                    boardTodoTitleId = it.id.toLong()
+                                    boardTodoTitleDraft = it.title
+                                },
+                                onTitleClick = {
+                                    boardTodoTitleId = it.id.toLong()
+                                    boardTodoTitleDraft = it.title
+                                },
+                                onRowClick = { item ->
+                                    todoItemDialog = TodoItemDialogState(todo.id, item)
+                                    todoItemDraft = item.text
+                                },
+                                onAddClick = { clicked ->
+                                    todoItemDialog = TodoItemDialogState(clicked.id, null)
+                                    todoItemDraft = ""
                                 }
                             )
                         }
@@ -785,6 +806,7 @@ fun DroidCanvasScreen(
                     items = canvasItems,
                     edges = edges,
                     todos = todos,
+                    todoItems = todoItems,
                     viewModel = viewModel,
                     modifier = Modifier.fillMaxSize()
                 )
@@ -2488,15 +2510,16 @@ fun DroidCanvasScreen(
         )
     }
 
-    // Dialog isi teks todo Board (T4): sama seperti dialog isi teks T3 di
-    // SidebarContent, tapi dibuka dari ketuk kartu / menu long-press.
-    val boardTodo = todos.find { it.id.toLong() == boardTodoTextId }
+    // Dialog isi judul todo Board (T4; R1, K11): sama seperti dialog isi
+    // judul T3 di SidebarContent, tapi dibuka dari ketuk kartu / judul /
+    // menu long-press.
+    val boardTodo = todos.find { it.id.toLong() == boardTodoTitleId }
     if (boardTodo != null) {
         AlertDialog(
-            onDismissRequest = { boardTodoTextId = null },
+            onDismissRequest = { boardTodoTitleId = null },
             title = {
                 Text(
-                    text = if (boardTodo.text.isBlank()) "Add todo" else "Edit todo",
+                    text = if (boardTodo.title.isBlank()) "Judul todo" else "Edit judul",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
@@ -2505,16 +2528,16 @@ fun DroidCanvasScreen(
             text = {
                 Column(modifier = Modifier.padding(top = 8.dp)) {
                     OutlinedTextField(
-                        value = boardTodoTextDraft,
-                        onValueChange = { boardTodoTextDraft = it },
-                        label = { Text("Todo") },
-                        placeholder = { Text("Tulis todo...") },
-                        minLines = 3,
-                        maxLines = 5,
+                        value = boardTodoTitleDraft,
+                        onValueChange = { boardTodoTitleDraft = it },
+                        label = { Text("Judul") },
+                        placeholder = { Text("Tulis judul...") },
+                        minLines = 1,
+                        maxLines = 2,
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .testTag("board_todo_text_input")
+                            .testTag("board_todo_title_input")
                     )
                 }
             },
@@ -2524,8 +2547,8 @@ fun DroidCanvasScreen(
                         // Item segar bila daftar berubah selagi dialog
                         // terbuka; simpan kosong dibolehkan.
                         val fresh = todos.find { it.id == boardTodo.id } ?: boardTodo
-                        viewModel.updateTodo(fresh, boardTodoTextDraft)
-                        boardTodoTextId = null
+                        viewModel.updateTodo(fresh, boardTodoTitleDraft)
+                        boardTodoTitleId = null
                     },
                     shape = RoundedCornerShape(10.dp)
                 ) {
@@ -2533,8 +2556,108 @@ fun DroidCanvasScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { boardTodoTextId = null }) {
+                TextButton(onClick = { boardTodoTitleId = null }) {
                     Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Dialog baris todo Board (R1, K11): tambah (item null) atau ubah
+    // baris, dari kartu todo. Cermin dialog yang sama di MapView.
+    val boardItemDialog = todoItemDialog
+    if (boardItemDialog != null) {
+        val editing = boardItemDialog.item
+        AlertDialog(
+            onDismissRequest = { todoItemDialog = null },
+            title = {
+                Text(
+                    text = if (editing == null) "Tambah baris" else "Ubah baris",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            text = {
+                Column(modifier = Modifier.padding(top = 8.dp)) {
+                    OutlinedTextField(
+                        value = todoItemDraft,
+                        onValueChange = { todoItemDraft = it },
+                        label = { Text("Baris") },
+                        placeholder = { Text("Tulis baris todo...") },
+                        minLines = 1,
+                        maxLines = 3,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("board_todo_item_input")
+                    )
+                    if (editing != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        TextButton(
+                            onClick = { todoItemToDelete = editing },
+                            modifier = Modifier.align(Alignment.End)
+                        ) {
+                            Text("Hapus baris", color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (editing == null) {
+                            viewModel.addTodoItem(boardItemDialog.todoId, todoItemDraft)
+                        } else {
+                            val fresh = todoItems.find { it.id == editing.id } ?: editing
+                            viewModel.updateTodoItem(fresh, todoItemDraft)
+                        }
+                        todoItemDialog = null
+                    },
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Save", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { todoItemDialog = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Konfirmasi hapus baris todo Board (R1, K11).
+    val boardDoomedItem = todoItemToDelete
+    if (boardDoomedItem != null) {
+        AlertDialog(
+            onDismissRequest = { todoItemToDelete = null },
+            title = {
+                Text(
+                    text = "Hapus baris?",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            text = {
+                Text("Baris ini akan dihapus permanen.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteTodoItem(boardDoomedItem)
+                        todoItemToDelete = null
+                        todoItemDialog = null
+                    },
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Hapus", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { todoItemToDelete = null }) {
+                    Text("Batal")
                 }
             }
         )
@@ -3638,35 +3761,41 @@ fun CanvasItemView(
                         )
                     }
                 }
-                // Ikon komentar bila gambar ini punya catatan (item 5,
-                // 2026-11-19) — tampil selalu, dipilih atau tidak, seperti
-                // ikon komentar di baris nama kartu Map. Hanya penanda;
-                // tambah/ubah catatan lewat tombol + di bawah gambar.
-                if (latestItem.note.isNotBlank()) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .padding(8.dp)
-                            .size(((30 / canvasScale).dp).coerceIn(24.dp, 40.dp))
-                            .background(
-                                color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.85f),
-                                shape = CircleShape
-                            )
-                            .border(
-                                width = (1 / canvasScale).dp,
-                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                                shape = CircleShape
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.ChatBubbleOutline,
-                            contentDescription = "Has note",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(((14 / canvasScale).dp).coerceIn(10.dp, 20.dp))
-                        )
-                    }
-                }
+            }
+        }
+
+        // Bubble catatan di Board (R1; O4 direvisi): teks note yang sama
+        // seperti bubble Map, tampil di bawah gambar bila ada note —
+        // dipilih atau tidak. Ikon komentar kecil di atas gambar (item 5)
+        // dihapus: teksnya sudah kelihatan, penandanya jadi tidak perlu.
+        // Posisi mengikuti Map: bila tombol + tampil (terpilih, tidak
+        // di-pin), bubble di bawah tombol itu; bila tidak, langsung di
+        // bawah gambar. Bubble hidup di dalam Box item (ikut skala/putar
+        // gambar); ketuk bubble → ubah catatan.
+        if (latestItem.note.isNotBlank()) {
+            val showNoteButton = isSelected && !latestItem.isPinned && !viewModel.isMultiSelectMode.value
+            // Ukuran tombol + (sama seperti di blok handle di bawah):
+            // 56dp / skala, dibatasi 44–64dp.
+            val noteButtonTouchSize = ((56 / canvasScale).dp).coerceIn(44.dp, 64.dp)
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .offset(y = if (showNoteButton) noteButtonTouchSize + 8.dp else 8.dp)
+                    .fillMaxWidth()
+                    .height(56.dp)
+                    .clickable { onNoteClick(latestItem) }
+                    .testTag("board_note_bubble_${latestItem.id}")
+            ) {
+                Text(
+                    text = latestItem.note,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 2,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+                )
             }
         }
 
@@ -4044,19 +4173,25 @@ fun CanvasItemView(
     }
 }
 
-// Kartu todo di Board (langkah 6, T4): kotak centang + teks, digeser seperti
-// gambar, ketuk kartu → ubah teks, long-press → menu (Ubah teks / Hapus).
-// Posisi yang disimpan adalah TITIK TENGAH kartu (T2), jadi kartu digeser
-// setengah ukurannya ke kiri/atas lewat graphicsLayer setelah offset.
-// Gesture mengikuti pola CanvasItemView: loop awaitEachGesture, long-press
-// 500 ms, slop 8f, satu tulis DB saat drag dilepas (updateTodoPosition).
-// Ketuk kotak centang ditangani anak (IconButton) — parent melewatkan
-// gesture yang sentuhannya sudah dikonsumsi anak (down.isConsumed).
+// Kartu todo di Board (langkah 6, T4; R1, K11: judul + daftar): isi
+// kartu = TodoListContent (sama seperti node Map) — judul tebal + garis +
+// baris-baris + tombol + rata kanan. Posisi yang disimpan adalah TITIK
+// TENGAH kartu (T2), jadi kartu digeser setengah ukurannya ke kiri/atas
+// lewat graphicsLayer setelah offset. Gesture mengikuti pola
+// CanvasItemView: loop awaitEachGesture, long-press 500 ms, slop 8f, satu
+// tulis DB saat drag dilepas (updateTodoPosition). Ketuk anak (judul /
+// baris / centang / +) ditangani anak — parent melewatkan gesture yang
+// sentuhannya sudah dikonsumsi anak (down.isConsumed). Ketuk area kosong
+// kartu → ubah judul; long-press → menu (Ubah judul / Hapus todo).
 @Composable
 fun TodoCardView(
     todo: Todo,
+    items: List<TodoItem>,
     viewModel: DroidCanvasViewModel,
     onEditClick: (Todo) -> Unit,
+    onTitleClick: (Todo) -> Unit,
+    onRowClick: (TodoItem) -> Unit,
+    onAddClick: (Todo) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val latestTodo by rememberUpdatedState(todo)
@@ -4075,8 +4210,8 @@ fun TodoCardView(
             .pointerInput(todo.id) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
-                    // Sentuhan sudah ditangani anak (kotak centang) — jangan
-                    // tafsir lagi sebagai ketuk/geser kartu.
+                    // Sentuhan sudah ditangani anak (judul/baris/centang/+) —
+                    // jangan tafsir lagi sebagai ketuk/geser kartu.
                     if (down.isConsumed) return@awaitEachGesture
                     down.consume()
                     var dragActive = false
@@ -4140,35 +4275,17 @@ fun TodoCardView(
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
             modifier = Modifier.width(220.dp)
         ) {
-            Row(
-                modifier = Modifier.padding(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                IconButton(
-                    onClick = { viewModel.toggleTodo(todo) },
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(
-                        imageVector = if (todo.done) Icons.Default.CheckBox else Icons.Default.CheckBoxOutlineBlank,
-                        contentDescription = if (todo.done) "Tandai belum selesai" else "Tandai selesai",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-                Text(
-                    text = if (todo.text.isBlank()) "Todo kosong" else todo.text,
-                    style = MaterialTheme.typography.bodyMedium,
-                    textDecoration = if (todo.done) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
-                    color = MaterialTheme.colorScheme.onSurface.copy(
-                        alpha = if (todo.done || todo.text.isBlank()) 0.5f else 1f
-                    ),
-                    modifier = Modifier.weight(1f)
-                )
-            }
+            TodoListContent(
+                todo = todo,
+                items = items,
+                onTitleClick = onTitleClick,
+                onRowClick = onRowClick,
+                onToggleItem = { viewModel.toggleTodoItem(it) },
+                onAddClick = onAddClick
+            )
         }
 
-        // Menu long-press (pola menu long-press gambar): Ubah teks / Hapus.
+        // Menu long-press (pola menu long-press gambar): Ubah judul / Hapus.
         DropdownMenu(
             expanded = menuExpanded,
             onDismissRequest = { menuExpanded = false },
@@ -4179,11 +4296,11 @@ fun TodoCardView(
                 .border(BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)), shape = RoundedCornerShape(20.dp))
         ) {
             DropdownMenuItem(
-                text = { Text("Ubah teks", fontWeight = FontWeight.Medium, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface) },
+                text = { Text("Ubah judul", fontWeight = FontWeight.Medium, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface) },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.Edit,
-                        contentDescription = "Ubah teks todo",
+                        contentDescription = "Ubah judul todo",
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(18.dp)
                     )
@@ -4519,6 +4636,7 @@ fun SidebarContent(
     val canvasItems by viewModel.canvasItems.collectAsState()
     val drawingStrokes by viewModel.drawingStrokes.collectAsState()
     val todos by viewModel.todos.collectAsState()
+    val todoItems by viewModel.todoItems.collectAsState()
     val isDrawModeEnabled = viewModel.isDrawModeEnabled
     val currentWidth = viewModel.drawingWidth
     val currentColor = viewModel.drawingColor
@@ -4538,8 +4656,8 @@ fun SidebarContent(
     // tambah todo (konfirmasi + isi teks).
     var isTodoExpanded by remember { mutableStateOf(true) }
     var todoConfirm by remember { mutableStateOf(false) }
-    var todoTextId by remember { mutableStateOf<Long?>(null) }
-    var todoTextDraft by remember { mutableStateOf("") }
+    var todoTitleId by remember { mutableStateOf<Long?>(null) }
+    var todoTitleDraft by remember { mutableStateOf("") }
     val todoScope = rememberCoroutineScope()
 
     // Active Tab State
@@ -5736,9 +5854,9 @@ fun SidebarContent(
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                // Demo desain todo (K3): pratinjau statis
-                                // saja — bukan template yang bisa dipakai.
-                                // Hanya blank todo yang disediakan.
+                                // Demo desain todo (K3; R1, K11): pratinjau
+                                // statis saja — bukan template yang bisa
+                                // dipakai. Hanya blank todo yang disediakan.
                                 Card(
                                     colors = CardDefaults.cardColors(
                                         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
@@ -5749,6 +5867,15 @@ fun SidebarContent(
                                         modifier = Modifier.padding(12.dp),
                                         verticalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
+                                        Text(
+                                            text = "Contoh judul",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        HorizontalDivider(
+                                            thickness = 1.dp,
+                                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                                        )
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -5827,7 +5954,7 @@ fun SidebarContent(
 
                         // Dialog konfirmasi tambah todo (K5): muncul setiap
                         // kali Blank Todo diketuk; "ya" → sisip di tengah
-                        // tampilan, lalu buka dialog isi teks.
+                        // tampilan, lalu buka dialog isi judul.
                         if (todoConfirm) {
                             AlertDialog(
                                 onDismissRequest = { todoConfirm = false },
@@ -5840,7 +5967,7 @@ fun SidebarContent(
                                 },
                                 containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                                 text = {
-                                    Text("Todo kosong akan muncul di tengah tampilan. Isi teksnya setelah itu.")
+                                    Text("Todo kosong akan muncul di tengah tampilan. Isi judulnya setelah itu.")
                                 },
                                 confirmButton = {
                                     Button(
@@ -5849,8 +5976,8 @@ fun SidebarContent(
                                             todoScope.launch {
                                                 val id = viewModel.addTodoAtCenter("", viewportWidth, viewportHeight)
                                                 if (id != null) {
-                                                    todoTextId = id
-                                                    todoTextDraft = ""
+                                                    todoTitleId = id
+                                                    todoTitleDraft = ""
                                                 }
                                             }
                                         },
@@ -5867,16 +5994,17 @@ fun SidebarContent(
                             )
                         }
 
-                        // Dialog isi teks todo (pola dialog note): dibuka
-                        // langsung setelah todo disisipkan; simpan kosong
-                        // dibolehkan (todo kosong, diisi belakangan).
-                        val todoTextTodo = todos.find { it.id.toLong() == todoTextId }
-                        if (todoTextTodo != null) {
+                        // Dialog isi judul todo (pola dialog note; R1,
+                        // K11): dibuka langsung setelah todo disisipkan;
+                        // simpan kosong dibolehkan (todo kosong, diisi
+                        // belakangan).
+                        val todoTitleTodo = todos.find { it.id.toLong() == todoTitleId }
+                        if (todoTitleTodo != null) {
                             AlertDialog(
-                                onDismissRequest = { todoTextId = null },
+                                onDismissRequest = { todoTitleId = null },
                                 title = {
                                     Text(
-                                        text = "Add todo",
+                                        text = "Judul todo",
                                         style = MaterialTheme.typography.titleLarge,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -5885,24 +6013,24 @@ fun SidebarContent(
                                 text = {
                                     Column(modifier = Modifier.padding(top = 8.dp)) {
                                         OutlinedTextField(
-                                            value = todoTextDraft,
-                                            onValueChange = { todoTextDraft = it },
-                                            label = { Text("Todo") },
-                                            placeholder = { Text("Tulis todo...") },
-                                            minLines = 3,
-                                            maxLines = 5,
+                                            value = todoTitleDraft,
+                                            onValueChange = { todoTitleDraft = it },
+                                            label = { Text("Judul") },
+                                            placeholder = { Text("Tulis judul...") },
+                                            minLines = 1,
+                                            maxLines = 2,
                                             shape = RoundedCornerShape(12.dp),
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .testTag("todo_text_input")
+                                                .testTag("todo_title_input")
                                         )
                                     }
                                 },
                                 confirmButton = {
                                     Button(
                                         onClick = {
-                                            viewModel.updateTodo(todoTextTodo, todoTextDraft)
-                                            todoTextId = null
+                                            viewModel.updateTodo(todoTitleTodo, todoTitleDraft)
+                                            todoTitleId = null
                                         },
                                         shape = RoundedCornerShape(10.dp)
                                     ) {
@@ -5910,7 +6038,7 @@ fun SidebarContent(
                                     }
                                 },
                                 dismissButton = {
-                                    TextButton(onClick = { todoTextId = null }) {
+                                    TextButton(onClick = { todoTitleId = null }) {
                                         Text("Cancel")
                                     }
                                 }
