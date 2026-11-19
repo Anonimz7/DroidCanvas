@@ -23,7 +23,7 @@
 |---|---|
 | Tablet optimization | ⚠️ **Sebatas breakpoint** — satu-satunya adaptasi tablet adalah sidebar tetap vs drawer pada `maxWidth >= 720.dp`. Tanpa layout khusus tablet, tanpa dukungan stylus/pen khusus, tanpa multi-window. |
 | Crop tool | ✅ **Sudah jadi** — `CropImageDialog` lengkap (rasio, handle) + `cropCanvasItem` di ViewModel. Status "berjalan" di README sudah kedaluwarsa; pindahkan ke selesai. |
-| Save/Open project file | ✅ **Selesai & teruji perangkat 2026-11-19 (Fase 1–7)** — format `.dc` (ZIP + manifest v1, `designs/manifest-schema.md`); `ProjectSaver` + `ProjectOpener` dengan unit test (5/5 + 7/7 terbukti; 2 test baru T7/T8 belum dieksekusi); tombol Save + Open + progres + berbagi lewat FileProvider sudah ada; **Save ulang 2026-11-19:** simpan ke `Download/droidcanvas` (MediaStore), dialog nama, Save As + Share terpisah. Uji manual end-to-end Fase 7 lulus 2026-11-19 (laporan user: jalan dan berhasil). Lihat `designs/save-open.md` |
+| Save/Open project file | ✅ **Selesai & teruji perangkat 2026-11-19 (Fase 1–7)** — format `.dc` (ZIP + manifest v1, `designs/manifest-schema.md`); `ProjectSaver` + `ProjectOpener` dengan unit test (5/5 + 7/7 terbukti; 2 test baru T7/T8 belum dieksekusi); tombol Save + Open + progres + berbagi lewat FileProvider sudah ada; **Save ulang 2026-11-19:** simpan ke `Download/droidcanvas` (MediaStore), dialog nama, Save As + Share terpisah. Uji manual end-to-end Fase 7 lulus 2026-11-19 (laporan user: jalan dan berhasil). **Perbaikan timpa 2026-11-19 (ADR-025):** Save memakai Uri tersimpan (`save_uri_<boardId>`) tanpa lookup; cadangan lookup nama saja — teruji di perangkat 2026-11-19 (Save berulang menimpa, tanpa berkas `(1)` baru). Lihat `designs/save-open.md` |
 
 ### Belum selesai (menurut README)
 

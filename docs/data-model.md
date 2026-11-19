@@ -222,10 +222,11 @@ Format + rancangan: `designs/save-open.md`, skema formal
   `Download/droidcanvas` lewat `ProjectFileStore` (MediaStore API 29+,
   File API di bawahnya; nama sama = timpa) + `saveState` (`SaveState`:
   `Saved` membawa nama berkas + `shareAfter`); target per papan di prefs
-  (`save_file_<boardId>`). `openProject(uri)` menyalin URI ke temp
+  (`save_file_<boardId>` + `save_uri_<boardId>` — Save memakai Uri
+  tersimpan langsung tanpa lookup, ADR-025). `openProject(uri)` menyalin URI ke temp
   `open-<uuid>.dc` di `cacheDir` (dihapus di `finally`), memanggil
   Opener, menulis kedua kamera + target (dari DISPLAY_NAME berkas asal)
-  ke prefs **sebelum** `selectBoard` (yang membaca kamera dari prefs),
+  + Uri dokumen yang dibuka ke prefs **sebelum** `selectBoard` (yang membaca kamera dari prefs),
   lalu `openState` (`OpenState`). ViewModel menerima objek
   `DroidCanvasDatabase` lewat factory (ADR-016) — repository tidak
   diubah. UI: tombol Save/Save As/Open/Share di tab BOARD, seksi PROJECT

@@ -72,7 +72,7 @@ cd DroidCanvas
 - [x] Undo/Redo
 - [x] Crop tool
 - [x] Grayscale toggle
-- [x] Save/Open project file — format `.dc`, Save ke `Download/droidcanvas`, Save As + Share — teruji di perangkat 2026-11-19
+- [x] Save/Open project file — format `.dc`, Save ke `Download/droidcanvas`, Save As + Share — teruji di perangkat 2026-11-19; Save menimpa target (Uri tersimpan, ADR-025) — teruji di perangkat 2026-11-19
 - [x] Map view — node graph over the Board (typed connections + notes) — teruji di perangkat 2026-11-19
 
 **Ongoing:**
