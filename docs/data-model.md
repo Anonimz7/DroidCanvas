@@ -1,7 +1,7 @@
 # Model Data
 
 > **Terakhir ditinjau:** 2026-11-19 · **HEAD:** `5f6db69`
-> Sumber: `app/src/main/java/com/example/data/DroidCanvasDatabase.kt` (341 baris),
+> Sumber: `app/src/main/java/com/example/data/DroidCanvasDatabase.kt` (424 baris),
 > `ImageStorageHelper.kt` (189 baris), `DroidCanvasViewModel.kt` (strokes & prefs).
 
 ## Room — `droid_canvas_database`, versi 11
