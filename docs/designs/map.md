@@ -68,7 +68,7 @@ dengan apa".
 | O1 | Penyimpanan posisi node Map | Kolom `mapX`/`mapY` di `CanvasItem` |
 | O2 | Penyimpanan notes | Kolom teks `note` di `CanvasItem` (satu catatan per item) |
 | O3 | Aturan hapus | Hapus gambar → edge + note + posisi Map ikut hapus |
-| O4 | Notes di Board | Map saja (v1) |
+| O4 | Notes di Board | Tambah/ubah juga di Board (tombol + di bawah gambar terpilih + ikon komentar, 2026-11-19); balon isi catatan tetap Map saja |
 | O5 | Arti counter `1/8` | Tidak ditiru di v1 (artinya belum jelas) |
 
 ## 5. Rancangan
@@ -164,8 +164,12 @@ dengan apa".
 > baris nama kartu bila ada note. Tap `+` atau tap balon membuka dialog
 > yang sama (`AlertDialog` + `OutlinedTextField`, pola dialog fase 3;
 > judul Add/Edit note, tombol Save/Cancel); menyimpan teks kosong
-> menghapus note (tidak ada balon). Notes HANYA di Map (O4) — tidak ada
-> apa pun soal note di tampilan Board. Simpan lewat `updateNote` di
+> menghapus note (tidak ada balon). Balon isi catatan HANYA di Map —
+> tambah/ubah catatan kini juga bisa dari Board (tombol + di bawah
+> gambar terpilih + ikon komentar di tengah atas gambar, 2026-11-19;
+> dialog yang sama, `updateNote` yang sama; gambar yang di-pin tombol
+> +-nya tidak tampil di Board, catatannya tetap bisa diubah lewat Map).
+> Simpan lewat `updateNote` di
 > ViewModel (snapshot undo dulu seperti `togglePinItem`, lalu
 > `updateCanvasItem(item.copy(note = ...))`; menyimpan note yang tidak
 > berubah = no-op supaya tidak mengotori undo stack). RISIKO INTERAKSI:

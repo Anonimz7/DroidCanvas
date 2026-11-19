@@ -117,6 +117,7 @@ import androidx.compose.material.icons.filled.Redo
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -272,6 +273,10 @@ fun DroidCanvasScreen(
     var renamingBoardName by remember { mutableStateOf("") }
     // Papan yang menunggu konfirmasi hapus (dialog konfirmasi, 2026-11-19).
     var boardToDelete by remember { mutableStateOf<Board?>(null) }
+    // Catatan Board (item 5, 2026-11-19): item yang dialog catatannya
+    // terbuka + draf teksnya (pola yang sama seperti MapView).
+    var boardNoteItem by remember { mutableStateOf<CanvasItem?>(null) }
+    var boardNoteDraft by remember { mutableStateOf("") }
     var cropTargetItem by remember { mutableStateOf<CanvasItem?>(null) }
 
     var showEmptyState by remember { mutableStateOf(false) }
@@ -2407,6 +2412,59 @@ fun DroidCanvasScreen(
         )
     }
 
+    // Dialog catatan Board (item 5, 2026-11-19): sama seperti dialog
+    // catatan Map — draf terisi catatan saat ini; simpan kosong
+    // menghapus catatan. Balon isi catatan tetap hanya di Map (O4).
+    val boardNote = boardNoteItem
+    if (boardNote != null) {
+        AlertDialog(
+            onDismissRequest = { boardNoteItem = null },
+            title = {
+                Text(
+                    text = if (boardNote.note.isBlank()) "Add note" else "Edit note",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            text = {
+                Column(modifier = Modifier.padding(top = 8.dp)) {
+                    OutlinedTextField(
+                        value = boardNoteDraft,
+                        onValueChange = { boardNoteDraft = it },
+                        label = { Text("Note") },
+                        placeholder = { Text("Write a note...") },
+                        minLines = 3,
+                        maxLines = 5,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("board_note_input")
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        // Item segar bila daftar berubah selagi dialog
+                        // terbuka; draf kosong menghapus catatan.
+                        val fresh = canvasItems.find { it.id == boardNote.id } ?: boardNote
+                        viewModel.updateNote(fresh, if (boardNoteDraft.isBlank()) "" else boardNoteDraft)
+                        boardNoteItem = null
+                    },
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Save", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { boardNoteItem = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     if (renamingBoard != null) {
         AlertDialog(
             onDismissRequest = { renamingBoard = null },
@@ -3504,6 +3562,35 @@ fun CanvasItemView(
                         )
                     }
                 }
+                // Ikon komentar bila gambar ini punya catatan (item 5,
+                // 2026-11-19) — tampil selalu, dipilih atau tidak, seperti
+                // ikon komentar di baris nama kartu Map. Hanya penanda;
+                // tambah/ubah catatan lewat tombol + di bawah gambar.
+                if (latestItem.note.isNotBlank()) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(8.dp)
+                            .size(((30 / canvasScale).dp).coerceIn(24.dp, 40.dp))
+                            .background(
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.85f),
+                                shape = CircleShape
+                            )
+                            .border(
+                                width = (1 / canvasScale).dp,
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                                shape = CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.ChatBubbleOutline,
+                            contentDescription = "Has note",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(((14 / canvasScale).dp).coerceIn(10.dp, 20.dp))
+                        )
+                    }
+                }
             }
         }
 
@@ -3685,6 +3772,39 @@ fun CanvasItemView(
                         imageVector = Icons.Default.OpenInFull,
                         contentDescription = "Resize Bottom Right",
                         tint = Color.White,
+                        modifier = Modifier.size(((12 / canvasScale).dp).coerceIn(8.dp, 16.dp))
+                    )
+                }
+            }
+
+            // 5. Bottom-Center: Note — add/edit the item's note (item 5,
+            // 2026-11-19; dialog yang sama seperti tombol + di Map, lewat
+            // updateNote yang sama). Di bawah gambar, di tengah, supaya
+            // tidak menutupi gambar. Hanya untuk gambar terpilih yang
+            // tidak di-pin (seperti handle lainnya); gambar yang di-pin
+            // catatannya tetap bisa diubah lewat Map.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .offset(y = halfTouchOffset)
+                    .size(touchSize)
+                    .clickable {
+                        boardNoteItem = latestItem
+                        boardNoteDraft = latestItem.note
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(handleSize)
+                        .background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
+                        .border(BorderStroke((1f / canvasScale).dp, MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f)), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Add note",
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier.size(((12 / canvasScale).dp).coerceIn(8.dp, 16.dp))
                     )
                 }

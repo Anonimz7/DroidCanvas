@@ -640,8 +640,9 @@ fun MapView(
 
         // Note dialog (fase 4, T8 / K6): add or edit the note of one node.
         // The draft is prefilled with the current note; saving blank text
-        // clears the note (no bubble). Notes exist only in Map (O4) —
-        // nothing about notes is shown on the Board.
+        // clears the note (no bubble). The note bubble shows only in Map
+        // (O4); adding/editing is also possible from the Board (+ button
+        // under the selected image, same updateNote).
         val noteItem = noteDialogItem
         if (noteItem != null) {
             AlertDialog(
