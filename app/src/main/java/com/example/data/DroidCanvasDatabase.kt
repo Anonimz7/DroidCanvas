@@ -105,6 +105,34 @@ data class Edge(
     val type: String // ConnectionType.name — see ConnectionType.kt
 )
 
+// Todo berbasis kanvas (langkah 6, T1): satu jenis objek lagi di kanvas,
+// sejajar gambar & goresan — bukan mode/tool/tampilan (K1). Satu todo
+// milik satu papan; posisi Board (posX/posY) + posisi Map (mapX/mapY)
+// mengikuti pola CanvasItem. Kartu todo diisi manual (blank todo, K3).
+@Entity(
+    tableName = "todos",
+    foreignKeys = [
+        ForeignKey(
+            entity = Board::class,
+            parentColumns = ["id"],
+            childColumns = ["boardId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index(value = ["boardId"])]
+)
+data class Todo(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val boardId: Int,
+    val text: String = "",
+    val done: Boolean = false,
+    val posX: Float = 0f,       // X coordinate in canvas space (Board)
+    val posY: Float = 0f,       // Y coordinate in canvas space (Board)
+    val mapX: Float = 0f,       // X coordinate of the node in Map view (own layout, like CanvasItem.mapX)
+    val mapY: Float = 0f,       // Y coordinate of the node in Map view (own layout, like CanvasItem.mapY)
+    val createdAt: Long = System.currentTimeMillis()
+)
+
 @Dao
 interface DroidCanvasDao {
     @Query("SELECT * FROM boards ORDER BY createdAt ASC")
@@ -156,10 +184,29 @@ interface EdgeDao {
     suspend fun deleteEdgesForBoard(boardId: Int)
 }
 
-@Database(entities = [Board::class, CanvasItem::class, Edge::class], version = 10, exportSchema = false)
+@Dao
+interface TodoDao {
+    @Query("SELECT * FROM todos WHERE boardId = :boardId ORDER BY createdAt ASC")
+    fun getTodosForBoard(boardId: Int): Flow<List<Todo>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTodo(todo: Todo): Long
+
+    @Update
+    suspend fun updateTodo(todo: Todo)
+
+    @Delete
+    suspend fun deleteTodo(todo: Todo)
+
+    @Query("DELETE FROM todos WHERE boardId = :boardId")
+    suspend fun deleteTodosForBoard(boardId: Int)
+}
+
+@Database(entities = [Board::class, CanvasItem::class, Edge::class, Todo::class], version = 11, exportSchema = false)
 abstract class DroidCanvasDatabase : RoomDatabase() {
     abstract fun droidCanvasDao(): DroidCanvasDao
     abstract fun edgeDao(): EdgeDao
+    abstract fun todoDao(): TodoDao
 
     companion object {
         @Volatile
@@ -287,6 +334,30 @@ abstract class DroidCanvasDatabase : RoomDatabase() {
             }
         }
 
+        // Todo berbasis kanvas (langkah 6, T1): tabel baru `todos` saja —
+        // tidak ada kolom baru di tabel lain. Tabel kosong saat migrasi
+        // (todo pertama dibuat setelah update), jadi tidak ada data yang
+        // perlu dipindahkan.
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `todos` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `boardId` INTEGER NOT NULL,
+                        `text` TEXT NOT NULL,
+                        `done` INTEGER NOT NULL,
+                        `posX` REAL NOT NULL,
+                        `posY` REAL NOT NULL,
+                        `mapX` REAL NOT NULL,
+                        `mapY` REAL NOT NULL,
+                        `createdAt` INTEGER NOT NULL,
+                        FOREIGN KEY(`boardId`) REFERENCES `boards`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_todos_boardId` ON `todos` (`boardId`)")
+            }
+        }
+
         fun getDatabase(context: Context): DroidCanvasDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -294,7 +365,7 @@ abstract class DroidCanvasDatabase : RoomDatabase() {
                     DroidCanvasDatabase::class.java,
                     "droid_canvas_database"
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance
@@ -306,7 +377,8 @@ abstract class DroidCanvasDatabase : RoomDatabase() {
 
 class DroidCanvasRepository(
     private val dao: DroidCanvasDao,
-    private val edgeDao: EdgeDao
+    private val edgeDao: EdgeDao,
+    private val todoDao: TodoDao
 ) {
     val allBoards: Flow<List<Board>> = dao.getAllBoards()
 
@@ -338,4 +410,15 @@ class DroidCanvasRepository(
     suspend fun deleteEdgesForItem(itemId: Int) = edgeDao.deleteEdgesForItem(itemId)
 
     suspend fun deleteEdgesForBoard(boardId: Int) = edgeDao.deleteEdgesForBoard(boardId)
+
+    // Todo berbasis kanvas (langkah 6, T1: data layer only)
+    fun getTodosForBoard(boardId: Int): Flow<List<Todo>> = todoDao.getTodosForBoard(boardId)
+
+    suspend fun insertTodo(todo: Todo): Long = todoDao.insertTodo(todo)
+
+    suspend fun updateTodo(todo: Todo) = todoDao.updateTodo(todo)
+
+    suspend fun deleteTodo(todo: Todo) = todoDao.deleteTodo(todo)
+
+    suspend fun deleteTodosForBoard(boardId: Int) = todoDao.deleteTodosForBoard(boardId)
 }
