@@ -706,7 +706,11 @@ fun DroidCanvasScreen(
                                 viewModel = viewModel,
                                 globalIsMultiTouch = globalIsMultiTouch,
                                 viewportWidth = viewportWidth,
-                                viewportHeight = viewportHeight
+                                viewportHeight = viewportHeight,
+                                onNoteClick = {
+                                    boardNoteItem = it
+                                    boardNoteDraft = it.note
+                                }
                             )
                         }
 
@@ -3241,7 +3245,8 @@ fun CanvasItemView(
     viewModel: DroidCanvasViewModel,
     globalIsMultiTouch: Boolean,
     viewportWidth: Float,
-    viewportHeight: Float
+    viewportHeight: Float,
+    onNoteClick: (CanvasItem) -> Unit
 ) {
     val latestItem by rememberUpdatedState(item)
     val rawScale = if (isSelected) viewModel.canvasScale else 1f
@@ -3788,10 +3793,7 @@ fun CanvasItemView(
                     .align(Alignment.BottomCenter)
                     .offset(y = halfTouchOffset)
                     .size(touchSize)
-                    .clickable {
-                        boardNoteItem = latestItem
-                        boardNoteDraft = latestItem.note
-                    },
+                    .clickable { onNoteClick(latestItem) },
                 contentAlignment = Alignment.Center
             ) {
                 Box(
