@@ -72,13 +72,11 @@ cd DroidCanvas
 - [x] Undo/Redo
 - [x] Crop tool
 - [x] Grayscale toggle
+- [x] Save/Open project file — format `.dc`, Save ke `Download/droidcanvas`, Save As + Share — teruji di perangkat 2026-11-19
+- [x] Map view — node graph over the Board (typed connections + notes) — teruji di perangkat 2026-11-19
 
 **Ongoing:**
 - [ ] Tablet optimization
-- [ ] Save/Open project file
-
-**Planned:**
-- [ ] Map view — node graph over the Board (typed connections + notes) — built (phases 1–5), awaiting on-device test
 
 ---
 

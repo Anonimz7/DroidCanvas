@@ -93,7 +93,7 @@ dengan apa".
 | T7 | Gesture Map (K8, fase 3): drag node — simpan `mapX`/`mapY` saat drag selesai; pan/zoom Map sendiri — geser ruang kosong = pan, pinch = zoom; buat edge: tarik dari port → picker jenis → simpan; hapus edge (tap garis / menu) | Selesai (fase 3) |
 | T8 | UI notes: tap + → input teks → balon di bawah kartu + ikon komentar (K6) | Selesai (fase 4) |
 | T9 | Hapus gambar → edge + note + posisi Map ikut hapus (O3); Save/Open: edge, notes, dan posisi Map ikut format proyek — lihat `designs/save-open.md` (format harus mencakup kolom baru ini) | Selesai (fase 5) |
-| T10 | Uji manual di perangkat (tidak ada tes UI otomatis hari ini): buat edge 8 jenis, geser node (garis ikut), tambah note, hapus gambar (edge ikut hilang) | Menunggu uji perangkat (fase 7) |
+| T10 | Uji manual di perangkat (tidak ada tes UI otomatis hari ini): buat edge 8 jenis, geser node (garis ikut), tambah note, hapus gambar (edge ikut hilang) | **Selesai — lulus uji perangkat 2026-11-19** (laporan user: jalan dan berhasil; termasuk gambar utuh di Settings + tombol + catatan di Board) |
 
 > **Catatan implementasi fase 1 (2026-11-18):** O3 diwujudkan dengan FK
 > `CASCADE` (`Edge` → `Board`, `Edge` → `CanvasItem` dua arah) — codebase
@@ -246,9 +246,9 @@ dengan apa".
 > pemanggil; tidak ada UI edit jenis edge; (b) target lepas buat edge
 > kini seluruh visual node (kartu + balon/tombol note), bukan hanya
 > kartu — melepas di balon/tombol node lain tidak lagi membatalkan edge.
-> Dokumen diselaraskan: status T1–T9 selesai/T10 menunggu, `roadmap.md`
-> langkah 5 + tabel Planned, `README.md` (tetap belum Completed — fase 7
-> belum lolos), `data-model.md` (DB v10 + tabel `edges` + kolom baru;
+> Dokumen diselaraskan: status T1–T10 selesai, `roadmap.md`
+> langkah 5 + tabel audit, `README.md` (Map + Save/Open kini Completed —
+> fase 7 lulus 2026-11-19), `data-model.md` (DB v10 + tabel `edges` + kolom baru;
 > catatan `isGrayscale` yang basi sejak 2026-11-17 ikut diperbaiki).
 > TIDAK ADA temuan besar — tidak ada yang ditunda ke laporan terpisah.
 >
