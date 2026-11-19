@@ -111,6 +111,7 @@ import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Landscape
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Undo
 import androidx.compose.material.icons.filled.Redo
 import androidx.compose.material.icons.filled.Search
@@ -242,7 +243,6 @@ fun DroidCanvasScreen(
     val density = LocalDensity.current
     val boards by viewModel.boards.collectAsState()
     val visibleBoards = boards
-    val defaultBoardId = remember(boards) { boards.minByOrNull { it.id }?.id }
     val activeBoardId by viewModel.currentBoardId.collectAsState()
     val isInitialLoadComplete by viewModel.isInitialLoadComplete.collectAsState()
     val canvasItems by viewModel.canvasItems.collectAsState()
@@ -270,6 +270,8 @@ fun DroidCanvasScreen(
     var showManageBoardsDialog by remember { mutableStateOf(false) }
     var renamingBoard by remember { mutableStateOf<Board?>(null) }
     var renamingBoardName by remember { mutableStateOf("") }
+    // Papan yang menunggu konfirmasi hapus (dialog konfirmasi, 2026-11-19).
+    var boardToDelete by remember { mutableStateOf<Board?>(null) }
     var cropTargetItem by remember { mutableStateOf<CanvasItem?>(null) }
 
     var showEmptyState by remember { mutableStateOf(false) }
@@ -355,6 +357,7 @@ fun DroidCanvasScreen(
                                 renamingBoard = b
                                 renamingBoardName = b.name
                             },
+                            onDeleteBoardClick = { b -> boardToDelete = b },
                             onManageBoardsClick = { showManageBoardsDialog = true },
                             onSettingsClick = { showSettingsDialog = true },
                             onClearBoardClick = { showClearConfirmDialog = true },
@@ -398,6 +401,7 @@ fun DroidCanvasScreen(
                                         renamingBoard = b
                                         renamingBoardName = b.name
                                     },
+                                    onDeleteBoardClick = { b -> boardToDelete = b },
                                     onManageBoardsClick = { showManageBoardsDialog = true },
                                     onSettingsClick = { showSettingsDialog = true },
                                     onClearBoardClick = { showClearConfirmDialog = true },
@@ -2340,10 +2344,13 @@ fun DroidCanvasScreen(
                                                 modifier = Modifier.size(18.dp)
                                             )
                                         }
-                                        if (visibleBoards.size > 1 && b.id != defaultBoardId) {
+                                        // Papan pertama (default) kini bisa dihapus juga —
+                                        // penjaganya tinggal "minimal 1 papan tersisa"
+                                        // (2026-11-19). Hapus lewat dialog konfirmasi.
+                                        if (visibleBoards.size > 1) {
                                             IconButton(
                                                 onClick = {
-                                                    viewModel.deleteBoard(b)
+                                                    boardToDelete = b
                                                 },
                                                 modifier = Modifier.size(32.dp)
                                             ) {
@@ -2368,6 +2375,33 @@ fun DroidCanvasScreen(
                     shape = RoundedCornerShape(10.dp)
                 ) {
                     Text("Done", fontWeight = FontWeight.Bold)
+                }
+            }
+        )
+    }
+
+    // Dialog konfirmasi hapus papan (2026-11-19): hapus papan menghapus
+    // semua gambar di dalamnya secara permanen — tidak bisa dibatalkan.
+    boardToDelete?.let { board ->
+        AlertDialog(
+            onDismissRequest = { boardToDelete = null },
+            title = { Text("Hapus workspace?") },
+            text = {
+                Text("Hapus workspace \"${board.name}\" beserta semua gambar di dalamnya? Tindakan ini tidak dapat dibatalkan.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteBoard(board)
+                        boardToDelete = null
+                    }
+                ) {
+                    Text("Hapus", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { boardToDelete = null }) {
+                    Text("Batal")
                 }
             }
         )
@@ -2846,7 +2880,90 @@ fun DroidCanvasScreen(
                         }
 
 
-                        // SECTION 3: ABOUT DROIDCANVAS
+                        // SECTION 3: MAP
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.padding(horizontal = 6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Map,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = "MAP",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    letterSpacing = 1.sp
+                                )
+                            }
+                            Card(
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                                ),
+                                shape = RoundedCornerShape(20.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(18.dp),
+                                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                                ) {
+                                    // Gambar node utuh (Fit) atau terpotong (Crop)
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.weight(1f),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(40.dp)
+                                                    .background(
+                                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                                        CircleShape
+                                                    ),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Image,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+                                            Column {
+                                                Text(
+                                                    text = "Tampilkan gambar Map utuh",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                                Text(
+                                                    text = "Gambar node ditampilkan seluruhnya tanpa terpotong (mati = potong mengisi kartu)",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                                )
+                                            }
+                                        }
+                                        Switch(
+                                            checked = viewModel.mapImageFull,
+                                            onCheckedChange = { viewModel.mapImageFull = it }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+
+                        // SECTION 4: ABOUT DROIDCANVAS
                         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -3993,6 +4110,7 @@ fun SidebarContent(
     onCloseSidebar: () -> Unit,
     onCreateBoardClick: () -> Unit,
     onRenameBoardClick: (Board) -> Unit,
+    onDeleteBoardClick: (Board) -> Unit,
     onManageBoardsClick: () -> Unit,
     onSettingsClick: () -> Unit,
     onClearBoardClick: () -> Unit,
@@ -4001,7 +4119,6 @@ fun SidebarContent(
 ) {
     val boards by viewModel.boards.collectAsState()
     val visibleBoards = boards
-    val defaultBoardId = remember(boards) { boards.minByOrNull { it.id }?.id }
     val activeBoardId by viewModel.currentBoardId.collectAsState()
     val canvasItems by viewModel.canvasItems.collectAsState()
     val drawingStrokes by viewModel.drawingStrokes.collectAsState()
@@ -4410,9 +4527,12 @@ fun SidebarContent(
                                                             modifier = Modifier.size(14.dp)
                                                         )
                                                     }
-                                                    if (visibleBoards.size > 1 && board.id != defaultBoardId) {
+                                                    // Papan pertama (default) kini bisa dihapus juga —
+                                                    // penjaganya tinggal "minimal 1 papan tersisa"
+                                                    // (2026-11-19). Hapus lewat dialog konfirmasi.
+                                                    if (visibleBoards.size > 1) {
                                                         IconButton(
-                                                            onClick = { viewModel.deleteBoard(board) },
+                                                            onClick = { onDeleteBoardClick(board) },
                                                             modifier = Modifier.size(28.dp)
                                                         ) {
                                                             Icon(
@@ -4457,6 +4577,22 @@ fun SidebarContent(
                             Column(
                                 verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
+                                // Indikator papan aktif + berkas tersimpan
+                                // (2026-11-19): agar pengguna tidak menebak
+                                // Save/Share berlaku untuk papan yang mana.
+                                val activeBoard = boards.find { it.id == activeBoardId }
+                                val savedName = viewModel.currentBoardSavedFileName
+                                Text(
+                                    text = "Papan aktif: ${activeBoard?.name ?: "-"}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = if (savedName != null) "Berkas: $savedName" else "Belum pernah disimpan",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(6.dp)

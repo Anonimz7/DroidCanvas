@@ -593,6 +593,14 @@ class DroidCanvasViewModel(
     private fun savedFileName(boardId: Int): String? =
         prefs.getString("save_file_$boardId", null)
 
+    /**
+     * Nama berkas target papan yang sedang aktif (null bila belum pernah
+     * disimpan/dibuka). Dibaca saat compose oleh indikator PROJECT FILE —
+     * segar setiap recompose (saveState/openState/papan aktif berubah).
+     */
+    val currentBoardSavedFileName: String?
+        get() = _currentBoardId.value?.let { savedFileName(it) }
+
     private fun activeBoardName(boardId: Int): String =
         boards.value.find { it.id == boardId }?.name ?: "board"
 
@@ -893,6 +901,17 @@ class DroidCanvasViewModel(
         set(value) {
             _themeMode = value
             prefs.edit().putString("theme_mode", value).apply()
+        }
+
+    // Gambar node Map: utuh (Fit, tanpa potong) atau terpotong (Crop,
+    // mengisi kartu). Default utuh — keputusan user 2026-11-19; opsi di
+    // menu Settings.
+    private var _mapImageFull by mutableStateOf(prefs.getBoolean("map_image_full", true))
+    var mapImageFull: Boolean
+        get() = _mapImageFull
+        set(value) {
+            _mapImageFull = value
+            prefs.edit().putBoolean("map_image_full", value).apply()
         }
 
     private var _isDynamicColorEnabled by mutableStateOf(prefs.getBoolean("dynamic_color_enabled", true))

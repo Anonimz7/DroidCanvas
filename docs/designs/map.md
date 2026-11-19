@@ -112,6 +112,9 @@ dengan apa".
 > (kartu node: thumbnail `thumbPath`, nama "Image #N" seperti daftar layer,
 > label IMAGE, port kiri/kanan di luar kartu supaya tidak terpotong clip;
 > thumbnail ikut grayscale bila `isGrayscale`, sama seperti kanvas/layer).
+> Gambar node: `mapImageFull` (prefs `map_image_full`, default true) — utuh
+> (Fit, tanpa potong) atau terpotong (Crop, mengisi kotak 120dp); opsi Switch
+> di Settings, seksi MAP (2026-11-19).
 > Yang TIDAK ikut fase 2 (sengaja): tombol `+` tidak dibuat — fungsinya
 > notes (T8/fase 4), tombol mati dilarang; **geser node tidak
 > diimplementasikan — tidak ada to-do yang mencantumkannya** (T10 hanya

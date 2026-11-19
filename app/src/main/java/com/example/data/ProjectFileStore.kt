@@ -35,18 +35,31 @@ object ProjectFileStore {
     /** `RELATIVE_PATH` MediaStore untuk folder di atas. */
     const val RELATIVE_PATH = "Download/droidcanvas"
 
-    const val MIME_TYPE = "application/zip"
+    // MIME generik — sengaja BUKAN "application/zip": MediaStore
+    // menempelkan ekstensi sesuai MIME bila ekstensi nama berkas tidak
+    // dikenal untuk MIME itu, dan `.dc` bukan ekstensi yang dikenal untuk
+    // `application/zip` — berkas jadi `X.dc.zip` (ditemukan 2026-11-19).
+    // `application/octet-stream` tidak punya ekstensi kanonis, jadi nama
+    // dibiarkan apa adanya. Isi berkas tetap ZIP; berbagi (Share) tetap
+    // memakai `application/zip`.
+    const val MIME_TYPE = "application/octet-stream"
 
     /**
-     * Bersihkan nama dari karakter yang tidak boleh ada di nama berkas.
-     * Nama kosong → [fallback]; akhiran `.dc` ditambahkan bila belum ada.
+     * Slug nama berkas: huruf kecil, spasi/whitespace → `_`, karakter
+     * ilegal → `_`, `_` beruntun digabung. "Number 1" → "number_1.dc".
+     * Akhiran `.dc.zip` (bekas penempelan MediaStore dulu) dibuang dulu
+     * supaya Open berkas lama menargetkan `number_1.dc`, bukan
+     * `number_1.dc.zip.dc`. Nama kosong → [fallback]; akhiran `.dc`
+     * ditambahkan bila belum ada.
      */
     fun sanitizeFileName(raw: String, fallback: String): String {
-        val illegal = Regex("[\\\\/:*?\"<>|\\p{Cntrl}]")
-        val cleaned = raw.trim().replace(illegal, "_").trim()
-        val base = cleaned.ifEmpty {
-            fallback.trim().replace(illegal, "_").trim().ifEmpty { "board" }
-        }
+        fun slug(s: String): String = s.trim().lowercase()
+            .replace(Regex("\\s+"), "_")
+            .replace(Regex("[^a-z0-9._-]"), "_")
+            .replace(Regex("_+"), "_")
+            .trim('_', '.')
+        var base = slug(raw).ifEmpty { slug(fallback).ifEmpty { "board" } }
+        if (base.endsWith(".dc.zip", ignoreCase = true)) base = base.dropLast(4)
         return if (base.endsWith(".dc", ignoreCase = true)) base else "$base.dc"
     }
 

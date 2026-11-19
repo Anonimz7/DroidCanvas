@@ -177,8 +177,11 @@ Skema formal + contoh lengkap: [`designs/manifest-schema.md`](manifest-schema.md
   via File API ke folder publik yang sama. Berkas kelihatan di file
   manager dan TIDAK hilang saat aplikasi di-uninstall.
 - **Nama berkas sama = timpa** (Save menimpa target yang sama; Save As
-  ke nama yang sudah ada juga menimpa). Nama dibersihkan dari karakter
-  ilegal; akhiran `.dc` ditambahkan bila belum ada.
+  ke nama yang sudah ada juga menimpa). Nama di-slug: huruf kecil,
+  spasi → `_` ("Number 1" → `number_1.dc`); akhiran `.dc` ditambahkan
+  bila belum ada; `.dc.zip` (bekas penempelan MediaStore dulu) dibuang
+  saat Open. MIME MediaStore `application/octet-stream` (bukan
+  `application/zip`) agar `.zip` tidak ditempelkan ke ekstensi `.dc`.
 - **Target diingat per papan** di prefs (`save_file_<boardId>`); Open
   dari berkas mengisi target itu dari nama berkas asal (Save menulis
   kembali ke berkas yang dibuka).
@@ -214,7 +217,7 @@ Skema formal + contoh lengkap: [`designs/manifest-schema.md`](manifest-schema.md
 | T3 | `ProjectSerializer`: Save Board+items+strokes → ZIP | Unit test: round-trip 1 papan (2 gambar + 1 goresan) kembali identik — **Kode selesai (Fase 2, `ProjectSaver` + `ProjectSaverTest`, 2026-11-19) — TERBUKTI 2026-11-19:** `ProjectSaverTest` 5/5 hijau di `:app:testDebugUnitTest` (JDK 21 + Robolectric sdk 36). Workflow Actions masih hanya `assembleRelease`, tidak menjalankan unit test (lihat G7) |
 | T4 | `ProjectOpener`: validasi → salin → transaksi Room | Unit test: versi tak dikenal ditolak; ZIP korup ditolak; gambar hilang ditolak; Open gagal = tidak ada papan baru — **Selesai 2026-11-19 (Fase 3):** `ProjectOpener.kt` + `ProjectOpenerTest.kt` (round-trip penuh + 5 penolakan + arsip pra-Map), 7/7 hijau di `:app:testDebugUnitTest` |
 | T5 | `file_paths.xml`: tambah `cache-path` | Berkas ZIP dari `cacheDir` bisa dibuka lewat `FileProvider` — **Selesai 2026-11-19 (Fase 3):** `<cache-path name="project_cache" path="." />`; `files-path` sengaja tidak ditambahkan (aturan keras 8) |
-| T6 | UI Save/Open di tab BOARD + progres + pesan hasil | Uji manual: Save → kirim ke perangkat lain → Open → isi papan sama — **SELESAI (kode, Fase 4, 2026-11-19):** tombol Save + Open (ViewModel `saveProject()` + `openProject()` + seksi PROJECT FILE di tab BOARD; Open lewat `ACTION_OPEN_DOCUMENT`, papan baru langsung aktif + kamera dimuat, pesan gagal menyebut sebabnya); berbagi Save jalan (cache-path T5). **Save ulang 2026-11-19:** Save → `Download/droidcanvas` (MediaStore, `ProjectFileStore`), dialog penamaan saat pertama simpan, Save As + Share terpisah, target per papan di prefs, Open mengisi target dari nama berkas asal. Uji manual end-to-end menunggu Fase 7 |
+| T6 | UI Save/Open di tab BOARD + progres + pesan hasil | Uji manual: Save → kirim ke perangkat lain → Open → isi papan sama — **SELESAI (kode, Fase 4, 2026-11-19):** tombol Save + Open (ViewModel `saveProject()` + `openProject()` + seksi PROJECT FILE di tab BOARD; Open lewat `ACTION_OPEN_DOCUMENT`, papan baru langsung aktif + kamera dimuat, pesan gagal menyebut sebabnya); berbagi Save jalan (cache-path T5). **Save ulang 2026-11-19:** Save → `Download/droidcanvas` (MediaStore, `ProjectFileStore`), dialog penamaan saat pertama simpan, Save As + Share terpisah, target per papan di prefs, Open mengisi target dari nama berkas asal. **2026-11-19:** nama berkas di-slug (`number_1.dc`) + MIME octet-stream; indikator papan aktif/berkas di PROJECT FILE. Uji manual end-to-end menunggu Fase 7 |
 | T7 | Buka berkas yang sama dua kali | Dua papan baru, tidak ada tabrakan id/berkas — **Test ditambah 2026-11-19 (Fase 5):** `buka berkas yang sama dua kali` di `ProjectOpenerTest` (2 papan, id + nama berkas berbeda, isi identik, `filesDir` tepat 6 berkas). Eksekusi belum dibuktikan (butuh test run) |
 | T8 | Uji manual papan besar (20+ gambar + goresan + values study) | Open selesai tanpa ANR; values study terhitung ulang — **Test skala ditambah 2026-11-19 (Fase 5):** `papan besar 20 gambar` di `ProjectOpenerTest` (20 item + edge + 2 goresan kembali utuh, `filesDir` tepat 41 berkas). ANR + values study terhitung ulang tetap uji perangkat (Fase 7) |
 | T9 | Perbarui `roadmap.md` (langkah 1 → selesai), `data-model.md`, `decisions.md` | Dokumen konsisten dengan kode — **Selesai 2026-11-19 (Fase 6):** `roadmap.md` langkah 1 + baris audit, `data-model.md` seksi Save/Open + catatan goresan, `decisions.md` ADR-016 |

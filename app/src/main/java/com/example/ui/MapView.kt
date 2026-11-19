@@ -119,6 +119,9 @@ fun MapView(
 ) {
     val density = LocalDensity.current
     val context = LocalContext.current
+    // Gambar node: utuh (Fit) atau terpotong (Crop) — lihat
+    // viewModel.mapImageFull (opsi di Settings, default utuh).
+    val imageFull = viewModel.mapImageFull
     val cardWidth = 180.dp
     // Thumbnail 120dp + name/label rows (~52dp). Grid rows are NOT a fixed
     // height: each row is as tall as its tallest node (see gridRowTopYPx),
@@ -520,6 +523,7 @@ fun MapView(
                     MapNodeCard(
                         item = item,
                         name = "Image #${index + 1}",
+                        imageFull = imageFull,
                         onNoteClick = { clicked ->
                             noteDialogItem = clicked
                             noteDraft = clicked.note
@@ -825,6 +829,7 @@ private enum class MapDragMode { NODE_DRAG, EDGE_CREATE, PAN, IGNORED }
 fun MapNodeCard(
     item: CanvasItem,
     name: String,
+    imageFull: Boolean,
     onNoteClick: (CanvasItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -867,7 +872,10 @@ fun MapNodeCard(
                                 .crossfade(true)
                                 .build(),
                             contentDescription = name,
-                            contentScale = ContentScale.Crop,
+                            // Utuh (Fit): seluruh gambar kelihatan, tanpa
+                            // potong; mati (Crop): mengisi kotak 120dp.
+                            // Opsi di Settings (mapImageFull, default utuh).
+                            contentScale = if (imageFull) ContentScale.Fit else ContentScale.Crop,
                             colorFilter = if (item.isGrayscale) ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) }) else null,
                             modifier = Modifier
                                 .fillMaxSize()
