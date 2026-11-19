@@ -212,6 +212,7 @@ import coil.request.ImageRequest
 import com.example.BuildConfig
 import com.example.data.Board
 import com.example.data.CanvasItem
+import com.example.data.Todo
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -249,6 +250,7 @@ fun DroidCanvasScreen(
     val canvasItems by viewModel.canvasItems.collectAsState()
     val edges by viewModel.edges.collectAsState()
     val drawingStrokes by viewModel.drawingStrokes.collectAsState()
+    val todos by viewModel.todos.collectAsState()
     val selectedItemId by viewModel.selectedItemId.collectAsState()
     val isMultiSelectMode by viewModel.isMultiSelectMode.collectAsState()
     val selectedItemIds by viewModel.selectedItemIds.collectAsState()
@@ -277,6 +279,9 @@ fun DroidCanvasScreen(
     // terbuka + draf teksnya (pola yang sama seperti MapView).
     var boardNoteItem by remember { mutableStateOf<CanvasItem?>(null) }
     var boardNoteDraft by remember { mutableStateOf("") }
+    // Todo Board (T4): todo yang dialog isi teksnya terbuka + drafnya.
+    var boardTodoTextId by remember { mutableStateOf<Long?>(null) }
+    var boardTodoTextDraft by remember { mutableStateOf("") }
     var cropTargetItem by remember { mutableStateOf<CanvasItem?>(null) }
 
     var showEmptyState by remember { mutableStateOf(false) }
@@ -710,6 +715,19 @@ fun DroidCanvasScreen(
                                 onNoteClick = {
                                     boardNoteItem = it
                                     boardNoteDraft = it.note
+                                }
+                            )
+                        }
+
+                        // Render kartu todo di Board (langkah 6, T4) — di
+                        // ruang kanvas yang sama dengan gambar.
+                        todos.forEach { todo ->
+                            TodoCardView(
+                                todo = todo,
+                                viewModel = viewModel,
+                                onEditClick = {
+                                    boardTodoTextId = it.id.toLong()
+                                    boardTodoTextDraft = it.text
                                 }
                             )
                         }
@@ -2469,6 +2487,58 @@ fun DroidCanvasScreen(
         )
     }
 
+    // Dialog isi teks todo Board (T4): sama seperti dialog isi teks T3 di
+    // SidebarContent, tapi dibuka dari ketuk kartu / menu long-press.
+    val boardTodo = todos.find { it.id.toLong() == boardTodoTextId }
+    if (boardTodo != null) {
+        AlertDialog(
+            onDismissRequest = { boardTodoTextId = null },
+            title = {
+                Text(
+                    text = if (boardTodo.text.isBlank()) "Add todo" else "Edit todo",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            text = {
+                Column(modifier = Modifier.padding(top = 8.dp)) {
+                    OutlinedTextField(
+                        value = boardTodoTextDraft,
+                        onValueChange = { boardTodoTextDraft = it },
+                        label = { Text("Todo") },
+                        placeholder = { Text("Tulis todo...") },
+                        minLines = 3,
+                        maxLines = 5,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("board_todo_text_input")
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        // Item segar bila daftar berubah selagi dialog
+                        // terbuka; simpan kosong dibolehkan.
+                        val fresh = todos.find { it.id == boardTodo.id } ?: boardTodo
+                        viewModel.updateTodo(fresh, boardTodoTextDraft)
+                        boardTodoTextId = null
+                    },
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Save", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { boardTodoTextId = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     if (renamingBoard != null) {
         AlertDialog(
             onDismissRequest = { renamingBoard = null },
@@ -3970,6 +4040,209 @@ fun CanvasItemView(
             )
         }
 
+    }
+}
+
+// Kartu todo di Board (langkah 6, T4): kotak centang + teks, digeser seperti
+// gambar, ketuk kartu → ubah teks, long-press → menu (Ubah teks / Hapus).
+// Posisi yang disimpan adalah TITIK TENGAH kartu (T2), jadi kartu digeser
+// setengah ukurannya ke kiri/atas lewat graphicsLayer setelah offset.
+// Gesture mengikuti pola CanvasItemView: loop awaitEachGesture, long-press
+// 500 ms, slop 8f, satu tulis DB saat drag dilepas (updateTodoPosition).
+// Ketuk kotak centang ditangani anak (IconButton) — parent melewatkan
+// gesture yang sentuhannya sudah dikonsumsi anak (down.isConsumed).
+@Composable
+fun TodoCardView(
+    todo: Todo,
+    viewModel: DroidCanvasViewModel,
+    onEditClick: (Todo) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val latestTodo by rememberUpdatedState(todo)
+    var dragOffset by remember { mutableStateOf(Offset.Zero) }
+    var menuExpanded by remember { mutableStateOf(false) }
+    var deleteConfirm by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+
+    Box(
+        modifier = modifier
+            .offset { IntOffset((todo.posX + dragOffset.x).roundToInt(), (todo.posY + dragOffset.y).roundToInt()) }
+            .graphicsLayer {
+                translationX = -size.width / 2f
+                translationY = -size.height / 2f
+            }
+            .pointerInput(todo.id) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    // Sentuhan sudah ditangani anak (kotak centang) — jangan
+                    // tafsir lagi sebagai ketuk/geser kartu.
+                    if (down.isConsumed) return@awaitEachGesture
+                    down.consume()
+                    var dragActive = false
+                    var longPressTriggered = false
+                    var accumulatedDrag = Offset.Zero
+                    val longPressJob = coroutineScope.launch {
+                        try {
+                            delay(500)
+                            if (accumulatedDrag.getDistance() < 10f && !dragActive) {
+                                longPressTriggered = true
+                                menuExpanded = true
+                            }
+                        } catch (e: Exception) {
+                            // Cancelled
+                        }
+                    }
+                    try {
+                        do {
+                            val event = awaitPointerEvent()
+                            val dragChange = event.changes.firstOrNull { it.id == down.id }
+                            if (dragChange != null && dragChange.pressed) {
+                                dragChange.consume()
+                                val dragAmount = dragChange.position - dragChange.previousPosition
+                                if (dragAmount != Offset.Zero) {
+                                    accumulatedDrag += dragAmount
+                                    if (accumulatedDrag.getDistance() > 10f) {
+                                        longPressJob.cancel()
+                                    }
+                                    if (!dragActive && accumulatedDrag.getDistance() > 8f && !longPressTriggered) {
+                                        dragActive = true
+                                    }
+                                    if (dragActive) {
+                                        dragOffset += dragAmount
+                                    }
+                                }
+                            }
+                        } while (event.changes.any { it.pressed })
+                    } finally {
+                        longPressJob.cancel()
+                        if (dragActive) {
+                            viewModel.updateTodoPosition(
+                                latestTodo,
+                                latestTodo.posX + dragOffset.x,
+                                latestTodo.posY + dragOffset.y
+                            )
+                            dragOffset = Offset.Zero
+                        }
+                    }
+                    if (!dragActive && !longPressTriggered && accumulatedDrag.getDistance() < 15f) {
+                        onEditClick(latestTodo)
+                    }
+                }
+            }
+            .testTag("todo_card_${todo.id}")
+    ) {
+        Card(
+            shape = RoundedCornerShape(10.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            modifier = Modifier.width(220.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                IconButton(
+                    onClick = { viewModel.toggleTodo(todo) },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = if (todo.done) Icons.Default.CheckBox else Icons.Default.CheckBoxOutlineBlank,
+                        contentDescription = if (todo.done) "Tandai belum selesai" else "Tandai selesai",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                Text(
+                    text = if (todo.text.isBlank()) "Todo kosong" else todo.text,
+                    style = MaterialTheme.typography.bodyMedium,
+                    textDecoration = if (todo.done) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
+                    color = MaterialTheme.colorScheme.onSurface.copy(
+                        alpha = if (todo.done || todo.text.isBlank()) 0.5f else 1f
+                    ),
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+
+        // Menu long-press (pola menu long-press gambar): Ubah teks / Hapus.
+        DropdownMenu(
+            expanded = menuExpanded,
+            onDismissRequest = { menuExpanded = false },
+            shape = RoundedCornerShape(20.dp),
+            modifier = Modifier
+                .width(240.dp)
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                .border(BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)), shape = RoundedCornerShape(20.dp))
+        ) {
+            DropdownMenuItem(
+                text = { Text("Ubah teks", fontWeight = FontWeight.Medium, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface) },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Ubah teks todo",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                },
+                onClick = {
+                    menuExpanded = false
+                    onEditClick(todo)
+                }
+            )
+            DropdownMenuItem(
+                text = { Text("Hapus", fontWeight = FontWeight.Medium, fontSize = 14.sp, color = MaterialTheme.colorScheme.error) },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Hapus todo",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(18.dp)
+                    )
+                },
+                onClick = {
+                    menuExpanded = false
+                    deleteConfirm = true
+                }
+            )
+        }
+
+        // Konfirmasi hapus: todo belum ikut undo (T7), jadi hapus harus
+        // dikonfirmasi — beda dengan hapus gambar yang langsung (undo ada).
+        if (deleteConfirm) {
+            AlertDialog(
+                onDismissRequest = { deleteConfirm = false },
+                title = {
+                    Text(
+                        text = "Hapus todo?",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                text = {
+                    Text("Todo ini akan dihapus permanen.")
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            viewModel.deleteTodo(todo)
+                            deleteConfirm = false
+                        },
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("Hapus", fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { deleteConfirm = false }) {
+                        Text("Batal")
+                    }
+                }
+            )
+        }
     }
 }
 

@@ -1683,6 +1683,14 @@ class DroidCanvasViewModel(
         }
     }
 
+    // Geser todo (T4, Board; T5, Map): satu tulis DB saat drag dilepas,
+    // pola updateItemAbsolutePosition. No undo snapshot — T7 (P4).
+    fun updateTodoPosition(todo: Todo, posX: Float, posY: Float) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.updateTodo(todo.copy(posX = posX, posY = posY))
+        }
+    }
+
     // Sisip blank todo di tengah tampilan yang terlihat (K6). Kedua posisi
     // diisi sekaligus — pusat Board (dari kamera Board) dan pusat Map (dari
     // kamera Map) — supaya todo langsung berada di tengah di tampilan mana
