@@ -300,6 +300,8 @@ dengan apa".
 > pindah. State `mapHdItemId` di ViewModel (sesi saja, tidak ke
 > prefs); dihapus saat gambarnya dihapus. Seret, port, dan kontrol
 > note tidak kena (sudah dipisah lewat `pastSlop` + urutan hit-test).
+> Ketuk ruang kosong (PAN, bukan garis) mengembalikan node HD ke
+> thumbnail.
 
 ## 6. Yang sengaja tidak dirancang di sini
 

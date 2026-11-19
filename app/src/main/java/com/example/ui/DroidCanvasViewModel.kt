@@ -987,6 +987,10 @@ class DroidCanvasViewModel(
         mapHdItemId = if (mapHdItemId == itemId) null else itemId
     }
 
+    fun clearMapHd() {
+        mapHdItemId = null
+    }
+
     private var _isDynamicColorEnabled by mutableStateOf(prefs.getBoolean("dynamic_color_enabled", true))
     var isDynamicColorEnabled: Boolean
         get() = _isDynamicColorEnabled

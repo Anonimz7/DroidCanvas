@@ -573,6 +573,9 @@ fun MapView(
                                     val endPortY = endNodes.associate { MapEndpoint(it.kind, it.id) to it.portYOffsetPx }
                                     val hit = edgeAt(downScreen, currentEdges, endPositions, endPortY)
                                     if (hit != null) edgeToDelete = hit
+                                    // Tap di ruang kosong (bukan garis): HD
+                                    // kembali ke thumbnail.
+                                    else viewModel.clearMapHd()
                                 }
                             }
                             MapDragMode.IGNORED -> {
