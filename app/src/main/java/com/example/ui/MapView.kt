@@ -9,6 +9,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateCentroid
@@ -1403,7 +1404,13 @@ fun TodoListContent(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(todoRowHeight)
-                    .clickable { onRowClick(item) },
+                    // Ketuk baris = centang/batal centang (selebar baris,
+                    // ADR-027); long-press baris = ubah baris (dialog yang
+                    // sama seperti sebelumnya, hapus baris di dalamnya).
+                    .combinedClickable(
+                        onClick = { onToggleItem(item) },
+                        onLongClick = { onRowClick(item) }
+                    ),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {

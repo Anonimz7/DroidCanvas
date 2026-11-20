@@ -94,7 +94,7 @@ Semua baris di bawah ini dibaca langsung dari kode di HEAD `d11aee5`
 | K8 | Per papan | Todo milik satu papan (satu workspace = satu set todo), seperti item dan edge. Belum diputuskan eksplisit — lihat P1. |
 | K9 | Switch draw mode | **Todo TIDAK memakai `isDrawModeEnabled`.** Switch itu ada karena menggambar adalah *mode input*: saat nyala, overlay gambar (`DroidCanvasScreen.kt:906`) menangkap semua sentuhan kanvas dan mengubahnya jadi goresan. Tambah todo adalah *aksi diskrit* (ketuk template → konfirmasi → sisip di tengah) — tidak ada gesture kanvas yang ditafsir ulang, jadi tidak butuh mode. Konsekuensi: seksi TODO adalah **sibling** seksi DRAWING TOOLS, di luar gate `if (viewModel.isDrawModeEnabled)` (`:5150`); saat draw mode nyala, overlay tetap mengambil alih sentuhan sehingga kartu todo (seperti gambar) tidak bisa diketuk/digeser sampai draw mode dimatikan. |
 | K10 | Lipat/buka seksi | **Seksi TODO bisa dilipat/dibuka seperti DRAWING TOOLS.** Pola yang sama persis: `SidebarSectionHeader` (chevron `KeyboardArrowDown` yang berputar 0°/−90° dengan spring, `:4156`) + state sendiri `isTodoExpanded` (default `true`, seperti semua seksi lain) + isi dibungkus `AnimatedVisibility` (`expandVertically() + fadeIn()` / `shrinkVertically() + fadeOut()`). Bedanya: slot `action` di header dikosongkan (Drawing Tools memakainya untuk Switch; Todo tidak punya switch — K9). |
-| K11 | Bentuk todo | **Satu todo = judul + daftar baris.** Judul cuma kepala (**tidak bisa dicentang**); di bawahnya garis pemisah, lalu baris-baris (masing-masing centang + teks), lalu tombol **+ di tengah** di bawah daftar (diubah 2026-11-19 dari rata kanan, atas permintaan user). Todo lama (satu entri `text`/`done`) **tidak dimigrasi — direset** (keputusan user 2026-11-19: "Biarin aja toh nanti direset"). Map menampilkan kartu yang **sama** seperti Board (bukan ringkasan). Interaksi: ketuk judul → ubah judul; ketuk baris → ubah baris (hapus baris dari dalam dialog itu); long-press kartu Board → menu Ubah judul / Hapus todo. (Penyimpangan dari usulan awal: hapus baris **bukan** long-press baris — hapus tinggal di dalam dialog ubah baris, supaya tidak ada hit-test per baris.) |
+| K11 | Bentuk todo | **Satu todo = judul + daftar baris.** Judul cuma kepala (**tidak bisa dicentang**); di bawahnya garis pemisah, lalu baris-baris (masing-masing centang + teks), lalu tombol **+ di tengah** di bawah daftar (diubah 2026-11-19 dari rata kanan, atas permintaan user). Todo lama (satu entri `text`/`done`) **tidak dimigrasi — direset** (keputusan user 2026-11-19: "Biarin aja toh nanti direset"). Map menampilkan kartu yang **sama** seperti Board (bukan ringkasan). Interaksi (diubah 2026-11-20, ADR-027): ketuk baris → centang/batal centang (selebar baris); long-press baris → ubah baris (hapus baris dari dalam dialog itu); ketuk judul → ubah judul; long-press kartu Board → menu Ubah judul / Hapus todo. (Penyimpangan awal — hapus baris **bukan** long-press baris — dicabut 2026-11-20: long-press baris kini membuka dialog ubah baris.) |
 
 ### Usulan (butuh kata user sebelum dibangun)
 
@@ -190,8 +190,9 @@ walau gambarnya dihapus. Satu kolom `note` tidak bisa menampung itu.
   bersama Map): **judul tebal + garis pemisah + baris-baris** (centang +
   teks; P2: selesai = coret + pudar, per baris) + **tombol + di tengah**
   di bawah daftar. Tinggi kartu mengikuti isi (93 + 36 dp per baris).
-  Ketuk judul → ubah judul; ketuk baris → ubah baris (hapus baris dari
-  dalam dialog itu); ketuk centang → `toggleTodoItem`; ketuk + → tambah
+  Ketuk judul → ubah judul; ketuk baris (di mana saja, termasuk
+  centang) → centang/batal centang (`toggleTodoItem`); long-press baris
+  → ubah baris (hapus baris dari dalam dialog itu); ketuk + → tambah
   baris; ketuk area kosong kartu → ubah judul. Geser kartu → pindah
   (pola drag gambar/Map). Long-press → menu Ubah judul / Hapus todo
   (P3, judul bukan teks); hapus dikonfirmasi (todo belum ikut undo — T7).
