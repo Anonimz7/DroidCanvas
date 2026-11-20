@@ -10,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateCentroid
@@ -1364,12 +1365,14 @@ fun MapNodeCard(
 // Isi kartu todo (R1, K11) — dipakai Board (TodoCardView) dan Map
 // (TodoNodeCard) supaya keduanya tampil sama persis ("Seperti board"):
 // judul tebal 1 baris + garis pemisah + baris-baris (centang + teks) +
-// tombol + rata kanan di bawah daftar. Ketuk judul → ubah judul; ketuk
-// teks baris → ubah baris; centang → toggle; + → tambah baris. Ketuk
-// anak (judul/baris/centang/+) ditangani anak dulu — gesture geser kartu
-// di parent melewatkan sentuhan yang sudah dikonsumsi anak (pola yang
-// sama seperti centang di T4). Semua baris punya tinggi tetap, jadi tinggi
-// kartu = todoCardHeightDp(jumlah baris) — lihat ukuran-ukuran di atas.
+// tombol + di tengah di bawah daftar. Ketuk judul → ubah judul; ketuk
+// baris → centang/batal centang; long-press baris → ubah baris; + →
+// tambah baris. Ketuk anak (judul/baris/centang/+) ditangani anak dulu —
+// gesture geser kartu di parent tidak lagi mundur saat sentuhan
+// dikonsumsi anak (ADR-026): geser bisa mulai dari mana saja. Semua
+// baris punya tinggi tetap, jadi tinggi kartu =
+// todoCardHeightDp(jumlah baris) — lihat ukuran-ukuran di atas.
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TodoListContent(
     todo: Todo,
