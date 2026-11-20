@@ -4224,14 +4224,16 @@ fun CanvasItemView(
 
 // Kartu todo di Board (langkah 6, T4; R1, K11: judul + daftar): isi
 // kartu = TodoListContent (sama seperti node Map) — judul tebal + garis +
-// baris-baris + tombol + rata kanan. Posisi yang disimpan adalah TITIK
+// baris-baris + tombol + di tengah. Posisi yang disimpan adalah TITIK
 // TENGAH kartu (T2), jadi kartu digeser setengah ukurannya ke kiri/atas
-// lewat graphicsLayer setelah offset. Gesture mengikuti pola
-// CanvasItemView: loop awaitEachGesture, long-press 500 ms, slop 8f, satu
-// tulis DB saat drag dilepas (updateTodoPosition). Ketuk anak (judul /
-// baris / centang / +) ditangani anak — parent melewatkan gesture yang
-// sentuhannya sudah dikonsumsi anak (down.isConsumed). Ketuk area kosong
-// kartu → ubah judul; long-press → menu (Ubah judul / Hapus todo).
+// lewat graphicsLayer setelah offset. Gesture meniru loop Map (bukan
+// CanvasItemView): loop awaitEachGesture, long-press 500 ms (hanya dari
+// area kosong), slop 8f, satu tulis DB saat drag dilepas
+// (updateTodoPosition). Parent TIDAK mundur saat sentuhan dikonsumsi anak
+// — geser bisa mulai dari mana saja di kartu (judul/baris/centang/+);
+// kalau gerakan melewati slop, parent mengonsumsi dan klik anak batal.
+// Ketuk biasa dibiarkan ke anak; ketuk area kosong kartu → ubah judul;
+// long-press area kosong → menu (Ubah judul / Hapus todo).
 @Composable
 fun TodoCardView(
     todo: Todo,
@@ -4259,14 +4261,19 @@ fun TodoCardView(
             .pointerInput(todo.id) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
-                    // Sentuhan sudah ditangani anak (judul/baris/centang/+) —
-                    // jangan tafsir lagi sebagai ketuk/geser kartu.
-                    if (down.isConsumed) return@awaitEachGesture
-                    down.consume()
+                    // Anak (judul/baris/centang/+) mengonsumsi sentuhan
+                    // saat ditekan — tapi JANGAN mundur: geser harus bisa
+                    // mulai dari mana saja di kartu (pola loop Map, bukan
+                    // CanvasItemView). Catat saja apakah anak yang
+                    // menangani, lalu bedakan geser vs ketuk dari gerakan.
+                    val childHandled = down.isConsumed
                     var dragActive = false
                     var longPressTriggered = false
                     var accumulatedDrag = Offset.Zero
-                    val longPressJob = coroutineScope.launch {
+                    // Long-press → menu hanya dari area kosong kartu
+                    // (seperti sebelumnya): sentuhan yang mulai di anak
+                    // tidak membuka menu.
+                    val longPressJob = if (!childHandled) coroutineScope.launch {
                         try {
                             delay(500)
                             if (accumulatedDrag.getDistance() < 10f && !dragActive) {
@@ -4276,30 +4283,55 @@ fun TodoCardView(
                         } catch (e: Exception) {
                             // Cancelled
                         }
-                    }
+                    } else null
                     try {
                         do {
                             val event = awaitPointerEvent()
                             val dragChange = event.changes.firstOrNull { it.id == down.id }
-                            if (dragChange != null && dragChange.pressed) {
-                                dragChange.consume()
-                                val dragAmount = dragChange.position - dragChange.previousPosition
-                                if (dragAmount != Offset.Zero) {
-                                    accumulatedDrag += dragAmount
-                                    if (accumulatedDrag.getDistance() > 10f) {
-                                        longPressJob.cancel()
+                            if (dragChange != null) {
+                                if (dragChange.pressed) {
+                                    val dragAmount = dragChange.position - dragChange.previousPosition
+                                    if (dragAmount != Offset.Zero) {
+                                        accumulatedDrag += dragAmount
+                                        if (accumulatedDrag.getDistance() > 10f) {
+                                            longPressJob?.cancel()
+                                        }
+                                        if (!dragActive && accumulatedDrag.getDistance() > 8f && !longPressTriggered) {
+                                            dragActive = true
+                                        }
+                                        if (dragActive || longPressTriggered) {
+                                            // Geser (atau menu sudah terbuka):
+                                            // konsumsi supaya klik anak batal
+                                            // — dan loop pan Board ikut batal
+                                            // (ia menyerah bila ada change
+                                            // yang dikonsumsi).
+                                            dragChange.consume()
+                                        }
+                                        if (dragActive) {
+                                            dragOffset += dragAmount
+                                        }
+                                    } else if (longPressTriggered) {
+                                        // Jari diam tapi menu sudah terbuka:
+                                        // konsumsi supaya lepasnya tidak
+                                        // memicu klik anak.
+                                        dragChange.consume()
                                     }
-                                    if (!dragActive && accumulatedDrag.getDistance() > 8f && !longPressTriggered) {
-                                        dragActive = true
-                                    }
-                                    if (dragActive) {
-                                        dragOffset += dragAmount
+                                } else {
+                                    // Jari diangkat: konsumsi bila kartu yang
+                                    // punya gesture ini (area kosong, geser,
+                                    // atau menu) — supaya klik anak tidak
+                                    // ikut jalan, dan Board tidak
+                                    // membatalkan seleksi gambar aktif.
+                                    // Ketuk di anak dibiarkan (klik anak
+                                    // yang jalan).
+                                    if (!childHandled || dragActive || longPressTriggered) {
+                                        dragChange.consume()
                                     }
                                 }
                             }
                         } while (event.changes.any { it.pressed })
                     } finally {
-                        longPressJob.cancel()
+                        longPressJob?.cancel()
                         if (dragActive) {
                             viewModel.updateTodoPosition(
                                 latestTodo,
@@ -4309,7 +4341,9 @@ fun TodoCardView(
                             dragOffset = Offset.Zero
                         }
                     }
-                    if (!dragActive && !longPressTriggered && accumulatedDrag.getDistance() < 15f) {
+                    // Ketuk di area kosong kartu → ubah judul; ketuk di
+                    // anak dibiarkan (klik anak yang jalan).
+                    if (!dragActive && !longPressTriggered && accumulatedDrag.getDistance() < 15f && !childHandled) {
                         onEditClick(latestTodo)
                     }
                 }
